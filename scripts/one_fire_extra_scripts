@@ -1,0 +1,96 @@
+one_fire.js script extra code
+
+
+//1. calculate NBR for the whole fire zone
+
+//var meanNBRbear = nbrRAW.reduceRegion({
+//  reducer: ee.Reducer.mean(), 
+//  geometry: bear,
+//  scale: 30 // meters!
+//});
+//print(meanNBRbear)
+
+
+// Threshold aspects, to create aspect masks
+//var north = cosImage.select('aspect').gt(0.5);
+//var south =  cosImage.select('aspect').lt(-0.5);
+//var east = sinImage.select('aspect').gt(0.5)
+//var west = sinImage.select('aspect').lt(-0.5)
+
+//var nbrEast = nbrRAW.updateMask(east)
+//var nbrNorth = nbrRAW.updateMask(north)
+//var nbrSouth = nbrRAW.updateMask(south)
+//var nbrWest = nbrRAW.updateMask(west)
+
+/*var meanNBRbearNorth = nbrNorth.reduceRegion({
+  reducer: ee.Reducer.mean(), 
+  geometry: bear,
+  scale: 30 // meters!
+});
+//print(meanNBRbearNorth)
+
+
+var meanNBRbearSouth = nbrSouth.reduceRegion({
+  reducer: ee.Reducer.mean(), 
+  geometry: bear,
+  scale: 30 // meters!
+});
+//print(meanNBRbearSouth)
+
+
+var meanNBRbearEast = nbrEast.reduceRegion({
+  reducer: ee.Reducer.mean(), 
+  geometry: bear,
+  scale: 30 // meters!
+});
+//print(meanNBRbearEast)
+
+
+var meanNBRbearWest = nbrWest.reduceRegion({
+  reducer: ee.Reducer.mean(), 
+  geometry: bear,
+  scale: 30 // meters!
+});
+//print(meanNBRbearWest)
+
+//var north = cosImage;
+// Mask "cold" pixels.
+north = north.updateMask(north);
+Map.addLayer(north, {palette: 'FF0000'}, 'north facing');
+
+//Map.addLayer(north, {palette: 'FF0000'}, 'aspect');
+
+//Compute the number of pixels in each patch.
+var patchsize = north.connectedPixelCount(256, false);
+Map.addLayer(patchsize, {}, 'patch size');
+
+// Uniquely label the patches and visualize.
+var north_patches = north.connectedComponents(ee.Kernel.plus(1), 256);
+Map.addLayer(north.randomVisualizer(), {}, 'north facing patches');
+
+//print(north_patches)*/
+
+
+
+
+
+
+
+
+//this only works well where the patches truly are distinct patches
+
+//calculating the size of each med/high severity burned patch for each pixel in such a patch.
+
+// Threshold the thermal band to find "hot" objects.
+var medHigh = burnSev.gt(2);
+
+print(medHigh.select('2014'));
+Map.addLayer(medHigh.select('2014'), {min: 0, max: 1}, 'medhigh');
+
+var medHigh2014 = medHigh.select('2014');
+var patchsize = medHigh2014.connectedPixelCount(256, false);
+Map.addLayer(patchsize, {}, 'patch size');
+
+// Uniquely label the patches and visualize.
+var patchid = medHigh2014.connectedComponents(ee.Kernel.plus(1), 256);
+Map.addLayer(patchid.randomVisualizer(), {}, 'patches');

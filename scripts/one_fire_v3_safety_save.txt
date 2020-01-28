@@ -1,0 +1,468 @@
+//################################################
+///////////////////setting viz params///////////////
+//################################################
+
+//var vizParams = require('users/ahanburybrown/DS421_proj/viz_funcs.js');
+var percent_recovery = {
+    min: -1,
+    max: 1,
+    palette: ['red','green']
+};
+
+
+var burnSevViz = {
+  min:1, 
+  max: 4,
+  palette: ['green','red']
+};
+
+
+//################################################
+//////////////running land trendr//////////////
+//###############################################
+
+// load the LandTrendr.js module
+var ltgee = require('users/emaprlab/public:Modules/LandTrendr.js');
+
+
+//choose the fire (this will be a loop soon)
+//object ID for the BEAR fire is 8079
+var object_id = 8079;
+var fire = fires.filter(ee.Filter.eq('OBJECTID', object_id));
+
+//Identify the year the fire took place and save is as a variable
+var fire_year_string = ee.String(fire.first().get('A_YEAR'))
+
+// define landtrendr parameters
+var startYear = 1985;
+var endYear = 2017;
+var startDay = '06-20'; //start day of each year you want to start the composite
+var endDay = '09-20';
+var aoi = fire;
+var index = 'NBR';
+var ftvList = ['NBR', 'NDVI'];
+var runParams = { 
+  maxSegments:            6,
+  spikeThreshold:         0.9,
+  vertexCountOvershoot:   3,
+  preventOneYearRecovery: true,
+  recoveryThreshold:      0.25,
+  pvalThreshold:          0.05,
+  bestModelProportion:    0.75,
+  minObservationsNeeded:  6
+};
+
+//will turn this off when I set up the loop
+Map.centerObject(aoi,13);
+Map.addLayer(aoi, false, 'aoi');
+
+
+// run the LandTrendr function
+var lt = ltgee.runLT(startYear, endYear, startDay, endDay, aoi, index, ftvList, runParams);
+
+//create image stack of the fitted NBR values where each year is a band
+var nbrFTV = ltgee.getFittedData(lt, startYear, endYear, ftvList[0]);
+
+//create image stack of NDVI where each year is a band
+var ndviFTV = ltgee.getFittedData(lt, startYear, endYear, ftvList[1]);
+
+//create image stack of raw NBR values
+var nbrRAW = ltgee.getFittedData(lt, startYear, endYear, index);
+
+//consider adding something here that gives the vertices...
+
+//printing the image stacks
+//print(nbrFTV);
+//print(ndviFTV);
+print(nbrRAW,'NBR raw')
+
+/////////////////creating the dependent variable(s)///////////
+
+//independent variables are percent NBR % recovery at 5,10, and 15 years after the fire
+//this assumes the pre-fire NBR value is the year before the fire
+var fire_year_number = ee.Number.parse(fire_year_string);
+var fire_plus_5_string = ee.String(fire_year_number.add(5));
+var fire_plus_10_string = ee.String(fire_year_number.add(10));
+var fire_plus_15_string = ee.String(fire_year_number.add(15));
+
+var R5 = nbrRAW.select([fire_plus_5_string]).divide(nbrRAW.select([fire_year_string]))
+var R10 = nbrRAW.select([fire_plus_10_string]).divide(nbrRAW.select([fire_year_string]))
+var R15 = nbrRAW.select([fire_plus_15_string]).divide(nbrRAW.select([fire_year_string]))
+
+
+//vizualizing where vegetation recovered vs. did not 5,10, and 15 years after the fire
+Map.addLayer(R5, percent_recovery,'percent recovery at 5 years after', false)
+Map.addLayer(R10, percent_recovery,'percent recovery at 10 years after', false)
+Map.addLayer(R15, percent_recovery,'percent recovery at 15 years after', false)
+
+
+//####################################################
+//////////creating predictor variables////////////////
+//####################################################
+
+/////Topographic variables/////
+// Load the SRTM image.
+var srtm = ee.Image('USGS/SRTMGL1_003')
+var slope = ee.Terrain.slope(srtm);
+//Map.addLayer(slope, {min: 0, max :60}, 'slope');
+var aspect = ee.Terrain.aspect(srtm);
+// Convert to radians AND compute the sin and cos of the aspect.
+//for "northness" the higher the number the closer to due North the pixel faces
+var northness = aspect.divide(180).multiply(Math.PI).cos();
+//for "eastness" the higher the number the closer to due east the pixel faces
+var eastness = aspect.divide(180).multiply(Math.PI).sin();
+//Map.addLayer(cosImage, {min: -1, max: 1}, 'cos');
+//Map.addLayer(aspect, {min: 0, max: 360}, 'aspect degrees');
+
+//stacking the predictor variables
+var topoVars = srtm.addBands(slope)
+.addBands(aspect)
+.addBands(northness)
+.addBands(eastness).rename(['elevation','slope','aspect','northness','eastness']);
+print(topoVars,'topo')
+//print(topoVars)
+
+
+
+
+
+///////////////////###########/////////////
+////////////////fire variables////////////////////
+////////###################################///////
+
+/////////////##############///////////////////
+/////////////1. BURN SEVERITY OF CURRENT FIRE///////////////////
+/////////////##############/////////////////
+
+//rename bands to be the years of the burn severity mosaics and mask out no data (0 and 6) and areas that got greener after the fire.
+// Select and (optionally) rename bands.
+var burnSev = burnSevRaw.select(
+  ["b1","b2","b3","b4","b5","b6","b7","b8","b9","b10","b11","b12","b13","b14","b15","b16","b17","b18","b19","b20","b21","b22","b23","b24","b25","b26","b27","b28","b29","b30","b31","b32","b33","b34"],
+  ["1984","1985","1986","1987","1988","1989","1990","1991","1992","1993","1994","1995","1996","1997","1998","1999","2000","2001","2002","2003","2004","2005","2006","2007","2008","2009","2010","2011","2012","2013","2014","2015","2016","2017"]
+);
+//masking out areas
+
+var burnSevmask = burnSev.gt(0)
+var burnSevmask2 = burnSev.lt(5)
+var burnSev = burnSev.updateMask(burnSevmask).updateMask(burnSevmask2)
+
+//////################################################################////////////////////////
+////2. Distance to the edge of the medium / high burn severity patches///////////////////
+//////###############################################################////////////////////
+
+var medHigh = burnSev.gt(2);
+var medHighFireYear = medHigh.select([fire_year_string]);
+Map.addLayer(medHighFireYear, {min:0, max:1, palette: ["white","red"]}, 'Med and High Zone', false)
+
+var BurnSevEdge = medHighFireYear.reduceToVectors({geometry: fire, maxPixels: 1000000000});
+Map.addLayer(BurnSevEdge, {}, 'vector burn', false);
+
+var distanceToBurn = BurnSevEdge.distance(100000);
+var distanceToBurnMask = medHighFireYear.gt(0)
+var distanceToBurn = distanceToBurn.updateMask(distanceToBurnMask)
+
+Map.addLayer(distanceToBurn, {min: 0, max: 400, palette:["orange","purple"]}, 'distance to burn', false)
+Map.addLayer(burnSev.select([fire_year_string]), burnSevViz, 'burn severity', false)
+
+///////##########################################################////////////////
+///////3. number of med/high prior fires since 1984//////////////////////////////
+////////#######################################################////////////////
+
+
+var num_fire_years_before_current = fire_year_number.subtract(1985); 
+//print(num_fire_years_before_current, 'num years before current')
+
+var fireHistyears = ee.List.sequence(0,(num_fire_years_before_current),1)
+//print(fireHistyears, 'fire hist years')
+
+var num_med_high_sev_fires_since_1984 = medHigh.select(fireHistyears).reduce('sum').rename('numPriorFireMedHigh')
+//print(num_med_high_sev_fires_since_1984, 'num med high fires before current')
+
+Map.addLayer(num_med_high_sev_fires_since_1984, {min:0, max:3, palette: ["green","red"]}, "number of prior med/high burns since 1984", false)
+
+Map.addLayer(fires, false, 'fires')
+
+///////##########################################################////////////////
+///////4. number of low severity prior fires since 1984//////////////////////////////////////
+////////#######################################################////////////////
+
+
+var num_lowSevFires_since1984 = burnSev.lt(2).select(fireHistyears).reduce('sum').rename('numPriorFireLow')
+Map.addLayer(num_lowSevFires_since1984, {min:0, max:3, palette: ["green","red"]}, "number of prior low burn fires since 1984", false)
+
+
+
+
+
+////////////CLIMATE VARIABLES///////////////////////////
+/////////////#################################///////////
+/////////////creating precip 30 year normals/////////////
+////////////################################/////////////
+
+var pptViz = {min:600, max:2500, palette: ['brown','blue']}
+
+var precip30yrNormFull = ee.ImageCollection('OREGONSTATE/PRISM/Norm81m')
+.filterBounds(fire)
+
+var precip30yrNormWetSeason = ee.Image(precip30yrNormFull
+    .toList(precip30yrNormFull.size())
+    .get(11))
+    .select(['ppt'])
+    .rename('Dec')
+
+//for loop for adding the other months as bands to the historic precip stack
+var i;
+for (i = 0; i < 5; i++) {
+//creating a Javascript dictionary to let months correspond to numbers
+var monthDict = {0:"Jan",1:"Feb",2:"Mar",3:"April",4:"May",5:"June"}
+var month = monthDict[i]
+
+//create temp band to add to the wet season 30 yr normal monthly precip stack
+var temp = ee.Image(precip30yrNormFull
+    .toList(precip30yrNormFull.size())
+    .get(i))
+    .select(['ppt'])
+    .rename(month)
+//add to the stack
+var precip30yrNormWetSeason = precip30yrNormWetSeason.addBands(temp)
+}
+
+var precip30yrNormWetSeason = precip30yrNormWetSeason.reduce('sum')
+
+
+print(precip30yrNormWetSeason, 'Wet Sesaon 30 normal')
+Map.addLayer(precip30yrNormWetSeason, pptViz, 'Wet season 30 yr normal')
+
+
+/////////////#################################///////////
+/////////////precip in wet season after fire (Dec-June); like Meng et al. 2015, but I added June /////////////
+/////////////Jan T min ////////////
+/////////////July T max ////////////
+////////////################################/////////////
+
+var WSyr0to5 = []
+var JanTmin0to5 = []
+var JulTMax0to5 = []
+
+var y;
+for (y = 1; y < 6; y++){
+  
+  
+var StringYears = {1:'F1',2:'F2',3:'F3',4:'F4',5:'F5'}
+var yrFromFire = ee.String(StringYears[y])
+var pptYr = ee.String(fire_year_number.add(y))
+
+
+var ClimWS = ee.ImageCollection('OREGONSTATE/PRISM/AN81m')
+.filterBounds(fire)
+.filterDate((fire_year_string).cat('-12-01'), pptYr.cat('-06-30'));
+
+
+var JanMin = ee.ImageCollection('OREGONSTATE/PRISM/AN81m')
+.filterBounds(fire)
+.filterDate(pptYr.cat('-01-01'))
+.first()
+.select(['tmin'])
+.rename([ee.String('JanTMin').cat(yrFromFire)])
+
+
+var JulTMax = ee.ImageCollection('OREGONSTATE/PRISM/AN81m')
+.filterBounds(fire)
+.filterDate(pptYr.cat('-07-01'))
+.first()
+.select(['tmax'])
+.rename([ee.String('JulTMax').cat(yrFromFire)])
+
+
+//creating an image of the first month ppt in the wet season following the fire (December)
+//the following months (Jan-June of the following calendar years get stacked on top in the for loop below)
+var pptWS = ee.Image(ClimWS
+    .toList(ClimWS.size())
+    .get(0))
+    .select(['ppt'])
+    .rename('pptDec')
+//for loop for adding the other months as bands to the WS1 precip stack
+
+var i;
+for (i = 0; i < 5; i++) {
+//creating a Javascript dictionary to let months correspond to numbers
+var monthDict = {0:"Jan",1:"Feb",2:"Mar",3:"April",4:"May",5:"June"}
+var month = monthDict[i]
+
+//create temporary ppt Image to add to the wet season ppt stack (as a new band)
+var bandName = ee.String(month).cat('ppt').cat(yrFromFire)
+var temp = ee.Image(ClimWS
+    .toList(ClimWS.size())
+    .get(i))
+    .select(['ppt'])
+    .rename(bandName)
+//add to the stack
+var pptWS = pptWS.addBands(temp)
+}
+
+WSyr0to5[y] = pptWS.reduce('sum').rename(ee.String('WSppt').cat(yrFromFire));
+JanTmin0to5[y] = JanMin
+JulTMax0to5[y] = JulTMax
+//June,July, and August max T anom.
+}
+
+
+//Stacking all the climate variables
+var climVars = ee.Image(
+  WSyr0to5[1].select(0))
+var q;
+for (q = 2; q < 6; q++){
+//adding all clim bands into one Image
+var climVars = climVars.addBands(
+    WSyr0to5[q].select(0)
+    )
+}
+
+for (q = 1; q < 6; q++){
+//adding all clim bands into one Image
+var climVars = climVars.addBands(
+    JanTmin0to5[q].select(0)
+    )
+}
+
+for (q = 1; q < 6; q++){
+//adding all clim bands into one Image
+var climVars = climVars.addBands(
+    JulTMax0to5[q].select(0)
+    )
+}
+
+
+print(climVars, 'climVars')  
+
+////##############################################
+//adding the variables into one image
+//###########################################
+
+var allVars = topoVars
+.addBands(burnSev.select([fire_year_string]).rename('burnSev').unmask())
+.addBands(distanceToBurn.unmask())
+.addBands(num_med_high_sev_fires_since_1984.unmask())
+.addBands(num_lowSevFires_since1984.unmask())
+.addBands(climVars)
+.addBands(R5)
+.addBands(R10)
+.addBands(R15);
+  
+  
+  
+//#export image
+Export.image.toDrive({
+  image: allVars,
+  description: 'bear_fire_data_90m',
+  scale: 90,
+  region: fire
+});
+
+
+  
+  
+  /*
+  
+print(allVars, 'allVars')
+
+
+/////#########run regression################3/////////////////
+
+var linear = allVars.select(['elevation','slope','northness','eastness','burnSev','JanTMinF1','2009'])
+  .reduceRegion(ee.Reducer.linearRegression(6,1),fire,90);
+
+print(linear)
+
+
+
+//export the data within the fire//
+
+var DA = allVars.toArray();
+
+print(DA,'DA')
+
+// Make an Array Image with a 2-D Array per pixel, 6x1.
+var DA2D = DA.toArray(1);
+
+
+print(DA2D)
+
+
+var test = allVars.reduceRegion({
+    reducer: ee.Reducer.toList(),
+    geometry: fire
+ })
+
+print(test,'test')
+
+
+
+var test2 = northness
+.reduceRegion({
+    reducer: ee.Reducer.count(),
+    geometry: fire
+ })
+ 
+ print(test2,'test2')
+
+
+
+
+
+
+
+/*
+var reduceR = function(image) {
+  return image.set(image.reduceRegion({
+    reducer: ee.Reducer.first(),
+    geometry: geometry,
+ }));
+};
+
+
+var mChla=chla.map(reduceR);
+
+Export.table.toDrive({
+  collection: ee.FeatureCollection(mChla), 
+  description: 'foo', 
+  fileNamePrefix: 'foo', 
+  fileFormat: 'CSV', 
+  selectors: ['chlor_a']
+});
+
+
+
+
+//var linear = albedo.select(['longitude', 'B4'])
+//  .reduceRegion(ee.Reducer.linearRegression(1,1),image.get('system:footprint'),10);
+
+//var linearFit = allVars.select(['burnSev', '2009'])
+//  .reduce(ee.Reducer.linearFit());
+
+//print(linearFit)
+/*
+// Compute ordinary least squares regression coefficients.
+var linearRegression = allVars.reduce(
+  ee.Reducer.linearRegression({
+    numX: 24,
+    numY: 1 
+}));
+
+
+var coefs = linearRegression.select(['coefficients'])
+print(linearRegression)
+print(coefs)
+*/
+
+
+
+
+
+
+
+
+
+
+
+

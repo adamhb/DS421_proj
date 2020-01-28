@@ -32,14 +32,15 @@ for(a in aspects){
 bearAspects <- rbind(bearNorth, bearSouth, bearEast, bearWest) %>% cbind(aspectCol)
 
 
-bearAspects %>%
+bearAspectsPlot <- bearAspects %>%
   ggplot(aes(year,NBR,col = aspectCol)) +
+  labs(title = "bear fire (1994)") +
   geom_line(size = 4) +
   adams_theme
 
-
-
-
+png("output/bearAspects.png")
+bearAspectsPlot
+dev.off()
 
 
 
