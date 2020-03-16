@@ -13,7 +13,7 @@ source('scripts/adams_theme.R') #for ggplot2
 
 Import data
 ```{r}
-df <- read_csv('data/FireDataKlamath1994V2.csv', col_types = cols(clusterID = col_factor()))
+df <- read_csv('data/FireDataKlamath1994V4.csv', col_types = cols(clusterID = col_factor()))
 
 eco_type_codes <- read_csv('data/landfire_ecotype_codes.csv')
 
@@ -134,7 +134,7 @@ df <- df %>% select(pixelID, clusterID, FIRE_YEAR, FireID, burnSev, distance, no
     (ecotype_code == 557) ~ "SubalpineWoodland",
     (ecotype_code == 558) ~ "NorthPacificMaritimeDougFirWestnHemlock"
   )) %>%
-  filter(ecotype_code %in% eco_type_codes$eco_type_code)
+  filter(ecotype_code %in% eco_type_codes$eco_type_code) 
 
 df
 #adding the ecotype descriptions
@@ -142,17 +142,30 @@ df
 
 
 
-Checking representation of forest types
+Checking representation of forest types. Make this a table.
 ```{r}
+#representation of forest types
 df %>%
   group_by(eco_type) %>%
   summarise(number_pixels = length(unique(pixelID))) %>%
-  mutate(sample_area_hectares = number_pixels * 900 / 10000)    
-  
+  drop_na() %>%
+  mutate(sample_area_hectares = number_pixels * 900 / 10000) %>%
+  ggplot(aes(eco_type, number_pixels)) +
+  geom_bar(stat = "identity") +
+  adams_theme +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+total_sample_area <- length(unique(df$pixelID)) * 900 / 10e4 
+total_sample_area 
+
+total_number_patches <- length(unique(df$clusterID))
+total_number_patches
 ```
 
 
-Exploring cluster size in hectares and pixels
+Exploring patch size in hectares and pixels
 ```{r}
 df %>%
   group_by(clusterID) %>%
@@ -166,18 +179,34 @@ df %>%
   mutate(cluster_area = num_pixels_per_cluster * 900 / 10000) %>%
   ggplot(aes(num_pixels_per_cluster)) +
   geom_histogram() +
-  xlim(c(0,100)) +
+  xlim(c(0,500)) +
   adams_theme
-  
+
+
+
+#number of patches
+length(unique(df$clusterID))
 ```
 
 
 
-Quantifying how many pixels how many pixels went from grass or shrub to forest
+Quantifying how many pixels went from non-forest back to forest in their post-fire regeneration trajectory
 ```{r}
+`%notin%` <- Negate(`%in%`)
+
+nonForest2001 <- df %>%
+  filter(year == 2001, landcover_code %notin% 41:43) %>%
+  pull(pixelID) %>% unique()
+
+#how many pixels went from shrub to tree
+df %>%
+  filter(pixelID %in% nonForest2001) %>%
+  filter(year == 2016, landcover_code %in% 41:43) %>%
+  pull(pixelID) %>% unique() %>% length()
+
+
 
 ```
-
 
 
 
@@ -217,19 +246,18 @@ df %>%
   labs(fill="") +
   adams_theme
 
-  
 
 ```
 
 
 plot patch-level NBR through time for a random sample of patches
 ```{r}
-patches <- sample(unique(df$clusterID),100)
+#patches <- sample(unique(df$clusterID),100)
 
 df %>%
   group_by(FireID, clusterID, year) %>%
   summarise_if(is.numeric,mean) %>%
-  filter(clusterID %in% patches) %>%
+  #filter(clusterID %in% patches) %>%
   ggplot(aes(year,NBR,color = clusterID)) +
   geom_line() +
   adams_theme +
@@ -243,7 +271,7 @@ Calculating the percent NBR recovery for each patch
 df %>%
   group_by(clusterID, year) %>%
   summarise_if(is.numeric,mean) %>%
-  filter(clusterID %in% patches) %>%
+  #filter(clusterID %in% patches) %>%
   ggplot(aes(year,pct_nbr_recovery,color = clusterID)) +
   geom_line() +
   ylim(c(-1,1.5)) +
@@ -350,11 +378,11 @@ plot % tree cover over time for a random sample of clusters
 #patches <- sample(unique(df$clusterID),5)
 
 df %>%
-  filter(burnSev > 2) %>%
+  filter(burnSev > 1) %>%
   drop_na(land_cover_name) %>%
   group_by(clusterID,year) %>%
   summarise(pct_tree = sum(landcover_code %in% 41:43) / length(landcover_code)) %>%
-  filter(clusterID %in% patches) %>%
+  #filter(clusterID %in% patches) %>%
   ggplot(aes(year,pct_tree,color = clusterID)) +
   geom_point() +
   geom_line() +
@@ -364,17 +392,27 @@ df %>%
 
 
 
-
-Identifying pixels that are showing signs of forest succession
-
+How many patches saw an increase in tree coverage during their regeneration trajectory? This measures the change in proportional area that trees take.
 ```{r}
+df %>%
+  #filter(burnSev > 1) %>%
+  drop_na(land_cover_name) %>%
+  group_by(clusterID,year) %>%
+  summarise(pct_tree = sum(landcover_code %in% 41:43) / length(landcover_code),
+            n_pixels = length(unique(pixelID))) %>%
+  group_by(clusterID) %>%
+  summarise(pct_change_tree = pct_tree[year==2016] - pct_tree[year==2001],
+            n_pixels = head(n_pixels,1))
 
+#A_mean = mean(values[value_type=="A"])
 ```
 
+There are pretty much no patches showing a meaningful change in tree cover during regeneration. Significant tree regeneration is not occuring on this timescale, despite the NBR values shifting towards 100% of pre-fire NBR.
 
 
 
 
+Just curious...
 ```{r}
 
 summary(lm(data = df, formula = pct_nbr_recovery_2017 ~ slope + elevation + northness + burnSev + distance))
@@ -384,6 +422,40 @@ summary(lm(data = df, formula = pct_nbr_recovery_1997 ~ slope + elevation + nort
 summary(lm(data = df, formula = pct_nbr_recovery_1992 ~ slope + elevation + northness + burnSev + distance))
 
 ```
+
+
+
+
+Extra
+```{r}
+
+#representation of starting (pre-fire) physiognomic classes
+df %>%
+  filter(year == 1992) %>%
+  group_by(land_cover_name) %>%
+  summarise(number_pixels = length(unique(pixelID))) %>%
+  drop_na() %>%
+  mutate(sample_area_hectares = number_pixels * 900 / 10000) %>%
+  ggplot(aes(land_cover_name, number_pixels)) +
+  geom_bar(stat = "identity") +
+  adams_theme +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+#representation of ending (post-fire) physiognomic classes
+df %>%
+  filter(year == 2016) %>%
+  group_by(land_cover_name) %>%
+  summarise(number_pixels = length(unique(pixelID))) %>%
+  drop_na() %>%
+  mutate(sample_area_hectares = number_pixels * 900 / 10000) %>%
+  ggplot(aes(land_cover_name, number_pixels)) +
+  geom_bar(stat = "identity") +
+  adams_theme +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
 
 
 
