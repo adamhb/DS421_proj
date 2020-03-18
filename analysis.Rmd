@@ -182,8 +182,6 @@ df %>%
   xlim(c(0,500)) +
   adams_theme
 
-
-
 #number of patches
 length(unique(df$clusterID))
 ```

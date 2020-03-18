@@ -530,16 +530,6 @@ patch_data %>%
 
 
 
-Just curious...
-```{r}
-
-summary(lm(data = df, formula = pct_nbr_recovery_2017 ~ slope + elevation + northness + burnSev + distance))
-
-summary(lm(data = df, formula = pct_nbr_recovery_1997 ~ slope + elevation + northness + burnSev + distance))
-
-summary(lm(data = df, formula = pct_nbr_recovery_1992 ~ slope + elevation + northness + burnSev + distance))
-
-```
 
 
 
@@ -575,9 +565,97 @@ df %>%
 ```
 
 
+Analysis of the effect of planting trees on the future physiognomic class in fire affected pixels.
 
 
+First look at % transitioning in treated and untreated pixels
+```{r}
+nonforest1992 <- df %>% 
+  select(pixelID, year, landcover_code, factsTreatmentCode) %>%
+  filter(year == 1992, landcover_code %notin% 41:43) %>% pull(pixelID)
+forest2016 <- df %>% 
+  select(pixelID, year, landcover_code, factsTreatmentCode) %>%
+  filter(year == 2016, landcover_code %in% 41:43) %>% pull(pixelID)
+transition2forest <- unique(df$pixelID[(df$pixelID %in% nonforest1992) & (df$pixelID %in% forest2016)])
 
+transition2forest
+
+df %>%
+  select(pixelID, year, landcover_code, factsTreatmentCode) %>%
+  mutate(transitioned = pixelID %in% transition2forest) %>%
+  mutate(planting = factsTreatmentCode %in% c(4431,4432)) %>%
+  group_by(pixelID) %>%
+  summarise(transitioned = max(transitioned), planted = max(planting)) %>%
+  group_by(planted) %>%
+  summarise(percent_trans = sum(transitioned) / length(transitioned), n = length(transitioned)) %>%
+  ggplot(aes(planted,percent_trans)) +
+  geom_bar(stat = "identity")
+```
+
+
+Pixel-level data, difference of differences (i.e. t-test)
+```{r}
+clusters_with_treatment <- df %>%
+  select(clusterID, pixelID, year, landcover_code, factsTreatmentCode) %>%
+  mutate(transitioned = pixelID %in% transition2forest) %>%
+  mutate(planting = factsTreatmentCode %in% c(4431,4432)) %>%
+  group_by(pixelID) %>% summarise(clusterID = first(clusterID), tr =   first(transitioned), pl = max(planting)) %>%
+  group_by(clusterID,pl) %>% summarise(n_tr = sum(tr), n = length(tr)) %>%
+  group_by(clusterID) %>%
+  summarise(nb = length(n)) %>%
+  filter(nb > 1) %>% pull(clusterID)
+
+facts_treatment_df <- df %>%
+  select(clusterID, pixelID, year, landcover_code, factsTreatmentCode) %>%
+  mutate(transitioned = pixelID %in% transition2forest) %>%
+  mutate(planting = factsTreatmentCode %in% c(4431,4432)) %>%
+  #filter(clusterID %in% cluster_with_treatment) %>%
+  group_by(pixelID) %>% summarise(clusterID = first(clusterID), tr = first(transitioned), pl = max(planting)) %>%
+  group_by(clusterID,pl) %>% summarise(n_tr = sum(tr), n = length(tr)) %>%
+  mutate(frac_tr = n_tr / n) %>%
+  mutate(lnfrac_tr = log(frac_tr + 0.000001))
+
+#treatGroup <- plantedVSnot %>% filter(pl == 1) %>% pull(frac_tr)
+
+#ControlGroup <- plantedVSnot %>% filter(pl == 0) %>% pull(frac_tr)
+
+```
+
+Visualizing data 
+```{r}
+
+facts_treatment_df %>%
+  ggplot(aes(factor(pl),frac_tr)) +
+  geom_boxplot() +
+  stat_summary(fun.y = mean, geom="point",colour="darkred", size=3) 
+
+```
+
+```{r}
+
+facts_treatment_df %>%
+ggplot(aes(frac_tr)) +
+geom_histogram()
+
+facts_treatment_df %>%
+ggplot(aes(log(frac_tr))) +
+geom_histogram()
+```
+
+
+```{r}
+clusters_with_facts_treatment <- facts_treatment_df %>%
+  filter(clusterID %in% clusters_with_treatment)  %>% 
+  group_by(clusterID) %>%
+  summarise(nb = length(n)) %>%
+  filter(nb > 1) %>% pull(clusterID)
+
+facts_treatment_df <- facts_treatment_df %>%
+  filter(clusterID %in% clusters_with_facts_treatment)
+
+
+t.test(lnfrac_tr ~ pl, data = test, paired = TRUE)
+```
 
 
 
