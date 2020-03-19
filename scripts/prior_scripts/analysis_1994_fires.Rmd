@@ -1,0 +1,463 @@
+---
+title: "analysis_script.Rmd"
+author: "DS421 Team"
+date: "March 9, 2020"
+output: html_document
+---
+Install Packages
+```{r}
+library(tidyverse)
+source('scripts/adams_theme.R') #for ggplot2
+```
+
+
+Import data
+```{r}
+df <- read_csv('data/FireDataKlamath1994V4.csv', col_types = cols(clusterID = col_factor()))
+
+eco_type_codes <- read_csv('data/landfire_ecotype_codes.csv')
+
+```
+
+clean data
+```{r}
+df <- df %>%
+  select(-.geo) %>%
+  #filter(FIRE_YEAR == 1994) %>%
+  rename(pixelID = 'system:index')
+```
+
+
+Creating a landcover data frame
+```{r}
+
+landcover <- names(df)[grep(names(df), pattern = "NLCD")]
+
+df_lc <- df %>%
+  select(pixelID, clusterID, landcover) %>%
+  gather(landcover, key = "NLCD_year", value = "landcover_code") %>%
+  mutate(land_cover_name = case_when(
+    (landcover_code == 71) ~ "grass_herb",
+    (landcover_code == 51) ~ "shrub",
+    (landcover_code == 42) ~ "evergreen_forest",
+    (landcover_code == 43) ~ "mixed forest",
+    (landcover_code == 31) ~ "barren_land",
+    (landcover_code == 23) ~ "developed",
+    (landcover_code == 41) ~ "deciduous_forest",
+    (landcover_code == 11) ~ "open_water",
+    (landcover_code == 81) ~ "pasture_hay",
+    (landcover_code == 33) ~ "transitional_barren",
+    (landcover_code == 52) ~ "shrub",
+    (landcover_code == 21) ~ "developed",
+    (landcover_code == 95) ~ "emergent_herb_wetlands",
+    (landcover_code == 90) ~ "woody_wetlands",
+    (landcover_code == 22) ~ "developed"
+  )) %>%
+  mutate(year = as.numeric(gsub("NLCD", "", NLCD_year))) %>%
+  arrange(clusterID)
+
+df_lc
+```
+
+
+Creating a tree canopy cover df
+```{r}
+
+TCC <- names(df)[grep(names(df), pattern = "TCC")]
+
+df_tcc <- df %>%
+  select(pixelID, clusterID, TCC) %>%
+  gather(TCC, key = "TCCyear", value = "pct_TCC") %>% 
+  mutate(year = as.numeric(gsub("TCC", "", TCCyear)))
+
+df_tcc
+```
+
+
+Creating an NBR dataframe
+```{r}
+years <- as.character(1985:2017)
+df_nbr <- df %>%
+  select(pixelID, clusterID, years) %>%
+  gather(years, key = "year_string", value = "NBR") %>%
+  mutate(year = as.numeric(year_string)) %>%
+  select(-year_string) %>%
+  arrange(clusterID)
+
+df_nbr
+```
+
+
+Creating a FACTS df
+```{r}
+
+facts_cols <- names(df)[grep(names(df), pattern = "facts")]
+df_facts <- df %>%
+  select(pixelID, clusterID, facts_cols) %>%
+  gather(facts_cols, key = "facts_year", value = "factsTreatmentCode") %>%
+  mutate(factsTreatment = case_when(
+    (factsTreatmentCode == 0) ~ "none",
+    (factsTreatmentCode == 4431) ~ "plant_trees",
+    (factsTreatmentCode == 4432) ~ "replant_or_fill"
+  )) %>%
+  mutate(year = as.numeric(gsub("facts", "", facts_year))) %>%
+  arrange(clusterID)
+
+df_facts
+```
+
+
+Merging dfs together
+```{r}
+#mering dfs together
+df <- df %>% select(pixelID, clusterID, FIRE_YEAR, FireID, burnSev, distance, northness, eastness, elevation, slope, b1) %>%
+  rename(ecotype_code = b1) %>%
+  left_join(df_nbr, by = c("pixelID","clusterID")) %>%
+  left_join(df_lc,c("pixelID","clusterID","year")) %>%
+  left_join(df_facts,c("pixelID","clusterID","year")) %>% 
+  mutate(burnSevLong = case_when(
+    (burnSev == 0) ~ "background/no_data",
+    (burnSev == 1) ~ "verylow/no_burn",
+    (burnSev == 2) ~ "low",
+    (burnSev == 3) ~ "med",
+    (burnSev == 4) ~ "high"
+  )) %>%
+  mutate(eco_type = case_when(
+    (ecotype_code == 549) ~ "KSmixedConLwrMontaneSerp",
+    (ecotype_code == 550) ~ "KSmixedConUpMontaneSerp",
+    (ecotype_code == 551) ~ "MixedConiferANDWoodlandDryToMesic",
+    (ecotype_code == 552) ~ "MixedConiferANDWoodlandMesic",
+    (ecotype_code == 553) ~ "MixedOak",
+    (ecotype_code == 554) ~ "LowerMontaneBlackOakMixedConiferANDWoodland",
+    (ecotype_code == 555) ~ "Jeffrey_Ponderosa",
+    (ecotype_code == 556) ~ "RedFir",
+    (ecotype_code == 557) ~ "SubalpineWoodland",
+    (ecotype_code == 558) ~ "NorthPacificMaritimeDougFirWestnHemlock"
+  )) %>%
+  filter(ecotype_code %in% eco_type_codes$eco_type_code) 
+
+df
+#adding the ecotype descriptions
+```
+
+
+
+Checking representation of forest types. Make this a table.
+```{r}
+#representation of forest types
+df %>%
+  group_by(eco_type) %>%
+  summarise(number_pixels = length(unique(pixelID))) %>%
+  drop_na() %>%
+  mutate(sample_area_hectares = number_pixels * 900 / 10000) %>%
+  ggplot(aes(eco_type, number_pixels)) +
+  geom_bar(stat = "identity") +
+  adams_theme +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+total_sample_area <- length(unique(df$pixelID)) * 900 / 10e4 
+total_sample_area 
+
+total_number_patches <- length(unique(df$clusterID))
+total_number_patches
+```
+
+
+Exploring patch size in hectares and pixels
+```{r}
+df %>%
+  group_by(clusterID) %>%
+  summarise(num_pixels_per_cluster = length(unique(pixelID))) %>%
+  mutate(cluster_area = num_pixels_per_cluster * 900 / 10000) %>%
+  pull(cluster_area) %>% summary()
+  
+df %>%
+  group_by(clusterID) %>%
+  summarise(num_pixels_per_cluster = length(unique(pixelID))) %>%
+  mutate(cluster_area = num_pixels_per_cluster * 900 / 10000) %>%
+  ggplot(aes(num_pixels_per_cluster)) +
+  geom_histogram() +
+  xlim(c(0,500)) +
+  adams_theme
+
+#number of patches
+length(unique(df$clusterID))
+```
+
+
+
+Quantifying how many pixels went from non-forest back to forest in their post-fire regeneration trajectory
+```{r}
+`%notin%` <- Negate(`%in%`)
+
+nonForest2001 <- df %>%
+  filter(year == 2001, landcover_code %notin% 41:43) %>%
+  pull(pixelID) %>% unique()
+
+#how many pixels went from shrub to tree
+df %>%
+  filter(pixelID %in% nonForest2001) %>%
+  filter(year == 2016, landcover_code %in% 41:43) %>%
+  pull(pixelID) %>% unique() %>% length()
+
+
+
+```
+
+
+
+
+Adding the percent NBR recovey to the df.
+%NBR recovery is the fraction of mean pre-fire NBR
+```{r}
+#creating pre-fire NBR values for each pixel
+pre_fire_nbr <- df %>% 
+  filter(year %in% 1988:1993) %>%
+  group_by(pixelID) %>%
+  summarise(preFireNBR = mean(NBR))
+
+#adding the percent NBR recovery to the df
+df <- df %>%
+  left_join(pre_fire_nbr) %>%
+  mutate(pct_nbr_recovery = NBR / preFireNBR)
+```
+
+
+Showing the distribution of NBR values for pixel classified as forest for NLCD
+```{r}
+# df %>%
+#   drop_na(land_cover_name) %>%
+#   filter(landcover_code %in% 41:43) %>%
+#   ggplot(aes(NBR)) +
+#   geom_histogram()
+
+
+df %>%
+  drop_na(land_cover_name) %>%
+  filter(landcover_code %in% c(41:42, 71,51,52)) %>%
+  ggplot(aes(x=NBR, fill=land_cover_name)) +
+  geom_density( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("light green", "dark green", "yellow", "brown")) +
+  #theme_ipsum() +
+  labs(fill="") +
+  adams_theme
+
+
+```
+
+
+plot patch-level NBR through time for a random sample of patches
+```{r}
+#patches <- sample(unique(df$clusterID),100)
+
+df %>%
+  group_by(FireID, clusterID, year) %>%
+  summarise_if(is.numeric,mean) %>%
+  #filter(clusterID %in% patches) %>%
+  ggplot(aes(year,NBR,color = clusterID)) +
+  geom_line() +
+  adams_theme +
+  theme(legend.position = "none")
+```
+
+
+Calculating the percent NBR recovery for each patch
+```{r}
+#patches <- sample(unique(df$clusterID),10)
+df %>%
+  group_by(clusterID, year) %>%
+  summarise_if(is.numeric,mean) %>%
+  #filter(clusterID %in% patches) %>%
+  ggplot(aes(year,pct_nbr_recovery,color = clusterID)) +
+  geom_line() +
+  ylim(c(-1,1.5)) +
+  adams_theme +
+  theme(legend.position = "none")
+```
+
+
+
+Histogram of percent recovery in 2000 (6 years after fire)
+```{r}
+df %>%
+  group_by(pixelID, year) %>%
+  summarise_if(is.numeric,mean) %>%
+  filter(year == 2000) %>%
+  ggplot(aes(x = pct_nbr_recovery, fill = factor(burnSev))) +
+  geom_density(alpha=0.6, position = 'identity') +
+  scale_fill_manual(values = c("springgreen4","springgreen2","olivedrab1","orange","orangered3")) +
+  xlim(c(-0.2,2)) +
+  adams_theme
+```
+
+Density plot of percent recovery in 2017 (23 years after fire)
+```{r}
+df %>%
+  group_by(pixelID, year) %>%
+  summarise_if(is.numeric,mean) %>%
+  filter(year == 2017) %>%
+  ggplot(aes(x = pct_nbr_recovery, fill = factor(burnSev))) +
+  geom_density(alpha=0.6, position = 'identity') +
+  scale_fill_manual(values = c("springgreen4","springgreen2","olivedrab1","orange","orangered3")) +
+  xlim(c(-0.2,2)) +
+  adams_theme
+```
+
+
+Creating variables showing the percent NBR recovery in 92,97,2017
+```{r}
+df <- df %>%
+  filter(pct_nbr_recovery >= -10)
+
+pctNBRrec2017 <- df %>%
+  filter(year == 2017) %>%
+  select(pixelID, pct_nbr_recovery) %>%
+  rename(pct_nbr_recovery_2017 = pct_nbr_recovery)
+
+pctNBRrec1997 <- df %>%
+  filter(year == 1997) %>%
+  select(pixelID, pct_nbr_recovery) %>%
+  rename(pct_nbr_recovery_1997 = pct_nbr_recovery)
+
+pctNBRrec1992 <- df %>%
+  filter(year == 1992) %>%
+  select(pixelID, pct_nbr_recovery) %>%
+  rename(pct_nbr_recovery_1992 = pct_nbr_recovery)
+
+df <- df %>%
+  left_join(pctNBRrec2017) %>%
+  left_join(pctNBRrec1997) %>%
+  left_join(pctNBRrec1992)
+```
+
+
+
+Showing the perecent NBR recovery by burn severity class (3 years after fire)
+```{r}
+df %>%
+  ggplot(aes(factor(burnSev), pct_nbr_recovery_1997)) +
+  geom_boxplot() +
+  ylim(c(0.2,1.5))
+```
+
+
+
+Showing the perecent NBR recovery by burn severity class (23 years after fire)
+```{r}
+df %>%
+  ggplot(aes(factor(burnSev), pct_nbr_recovery_2017)) +
+  geom_boxplot() +
+  ylim(c(0.2,1.5))
+```
+
+
+
+Showing the relationship between distance (to the edge of a medium / high severity burned area) and % NBR recovery in 2017 (26 years after fire)
+```{r}
+pre_fire_pixels_forest <- df %>% filter(year == 1992, landcover_code %in% 41:42) %>% pull(pixelID) 
+
+df %>%
+  filter(pixelID %in% pre_fire_pixels_forest) %>%
+  filter(burnSev >= 3) %>%
+  ggplot(aes(distance, pct_nbr_recovery_2017)) +
+  geom_point() +
+  scale_x_continuous() +
+  scale_y_continuous() +
+  xlim(c(0,500)) +
+  adams_theme
+```
+
+
+plot % tree cover over time for a random sample of clusters
+```{r}
+#create data frame of the change in forest cover for each cluster
+#patches <- sample(unique(df$clusterID),5)
+
+df %>%
+  filter(burnSev > 1) %>%
+  drop_na(land_cover_name) %>%
+  group_by(clusterID,year) %>%
+  summarise(pct_tree = sum(landcover_code %in% 41:43) / length(landcover_code)) %>%
+  #filter(clusterID %in% patches) %>%
+  ggplot(aes(year,pct_tree,color = clusterID)) +
+  geom_point() +
+  geom_line() +
+  adams_theme +
+  theme(legend.position = "none")
+```
+
+
+
+How many patches saw an increase in tree coverage during their regeneration trajectory? This measures the change in proportional area that trees take.
+```{r}
+df %>%
+  #filter(burnSev > 1) %>%
+  drop_na(land_cover_name) %>%
+  group_by(clusterID,year) %>%
+  summarise(pct_tree = sum(landcover_code %in% 41:43) / length(landcover_code),
+            n_pixels = length(unique(pixelID))) %>%
+  group_by(clusterID) %>%
+  summarise(pct_change_tree = pct_tree[year==2016] - pct_tree[year==2001],
+            n_pixels = head(n_pixels,1))
+
+#A_mean = mean(values[value_type=="A"])
+```
+
+There are pretty much no patches showing a meaningful change in tree cover during regeneration. Significant tree regeneration is not occuring on this timescale, despite the NBR values shifting towards 100% of pre-fire NBR.
+
+
+
+
+Just curious...
+```{r}
+
+summary(lm(data = df, formula = pct_nbr_recovery_2017 ~ slope + elevation + northness + burnSev + distance))
+
+summary(lm(data = df, formula = pct_nbr_recovery_1997 ~ slope + elevation + northness + burnSev + distance))
+
+summary(lm(data = df, formula = pct_nbr_recovery_1992 ~ slope + elevation + northness + burnSev + distance))
+
+```
+
+
+
+
+Extra
+```{r}
+
+#representation of starting (pre-fire) physiognomic classes
+df %>%
+  filter(year == 1992) %>%
+  group_by(land_cover_name) %>%
+  summarise(number_pixels = length(unique(pixelID))) %>%
+  drop_na() %>%
+  mutate(sample_area_hectares = number_pixels * 900 / 10000) %>%
+  ggplot(aes(land_cover_name, number_pixels)) +
+  geom_bar(stat = "identity") +
+  adams_theme +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+#representation of ending (post-fire) physiognomic classes
+df %>%
+  filter(year == 2016) %>%
+  group_by(land_cover_name) %>%
+  summarise(number_pixels = length(unique(pixelID))) %>%
+  drop_na() %>%
+  mutate(sample_area_hectares = number_pixels * 900 / 10000) %>%
+  ggplot(aes(land_cover_name, number_pixels)) +
+  geom_bar(stat = "identity") +
+  adams_theme +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+
+
+
+
+
+
