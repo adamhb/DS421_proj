@@ -395,7 +395,7 @@ these fractions from 1992 to 2016 (the fire was in 1987).
 Whats the distribution of changes in the fractional area of tree cover
 between 2016 and 1992 for the patches in our sample? Below we see that
 most patches did not change their area of tree cover, while some
-accumulated more tree cover and other accumulated less.
+accumulated tree cover and some lost tree cover.
 
     #Calculating the patch-level dependent variable (% change in tree cover)
     patch_level_percent_change_in_forest_cover <- df %>%
@@ -527,8 +527,10 @@ Exploring correlations between variables
 
 ![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-19-1.png)
 
-Analyzing forest recovery by forest type. The Mixed Conifer Mesic Forest
-type appears to have quicker forest regeneration.
+Analyzing forest recovery by forest type. The majority of forest types
+continue to lose forest cover even 5 years after the fire. The Mixed
+Conifer Mesic Forest type appears to have the most promising forest
+regeneration.
 
     patch_data %>%
       ggplot(aes(x = eco_type,y = pct_change_tree)) +
@@ -542,7 +544,8 @@ Analyzing the effect of the USFS planting trees on the future
 physiognomic class in fire-affected pixels using data from the Forest
 Activity Tracking System dataset.
 
-First look at % transitioning in treated and untreated pixels
+A first look at % of pixels transitioning from non-forest to forest in
+treated (planted) and untreated pixels.
 
     nonforest1992 <- df %>% 
       select(pixelID, year, landcover_code, factsTreatmentCode) %>%
@@ -629,7 +632,7 @@ distributed. A log transform resolves this.
 ![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-24-2.png)
 
 A paired t-test shows that planting does increase forest regeneration 30
-years after fire. The
+years after fire.
 
     clusters_with_treatment <- facts_treatment_df %>%
       drop_na(clusterID) %>%
