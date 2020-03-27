@@ -2,14 +2,14 @@ Install Packages
 
     library(tidyverse)
 
-    ## ── Attaching packages ─────────────────────────────────────────────────────────────────────── tidyverse 1.3.0 ──
+    ## ── Attaching packages ────────────────────────────────────────────────────── tidyverse 1.3.0 ──
 
     ## ✓ ggplot2 3.3.0     ✓ purrr   0.3.3
     ## ✓ tibble  2.1.3     ✓ dplyr   0.8.5
     ## ✓ tidyr   1.0.2     ✓ stringr 1.4.0
     ## ✓ readr   1.3.1     ✓ forcats 0.5.0
 
-    ## ── Conflicts ────────────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
+    ## ── Conflicts ───────────────────────────────────────────────────────── tidyverse_conflicts() ──
     ## x dplyr::filter() masks stats::filter()
     ## x dplyr::lag()    masks stats::lag()
 
@@ -21,6 +21,8 @@ Import data
       rbind(read_csv('data/FireDataKlamath1987part2_v2.csv', col_types = cols(clusterID = col_factor()))) %>%
       rbind(read_csv('data/FireDataKlamath1987part3_v2.csv', col_types = cols(clusterID = col_factor())))
 
+
+    #this csv describe each ecotype code
     eco_type_codes <- read_csv('data/landfire_ecotype_codes.csv')
 
     ## Parsed with column specification:
@@ -29,23 +31,48 @@ Import data
     ##   eco_type_description = col_character()
     ## )
 
-    n_pixels <- nrow(df)
+    n_pixels <- nrow(df) #number of pixels in the dataset 
+    n_pixels
 
-clean data
+    ## [1] 32815
+
+Some initial cleaning of the data
 
     df <- df %>%
       select(-.geo, -'system:index') %>%
-      #filter(FIRE_YEAR == 1994) %>%
       mutate(pixelID = as.character(1:n_pixels))
 
-Identifying patches with more than eight pixels
+    names(df)
+
+    ##   [1] "1985"      "1986"      "1987"      "1988"      "1989"      "1990"     
+    ##   [7] "1991"      "1992"      "1993"      "1994"      "1995"      "1996"     
+    ##  [13] "1997"      "1998"      "1999"      "2000"      "2001"      "2002"     
+    ##  [19] "2003"      "2004"      "2005"      "2006"      "2007"      "2008"     
+    ##  [25] "2009"      "2010"      "2011"      "2012"      "2013"      "2014"     
+    ##  [31] "2015"      "2016"      "2017"      "FIRE_YEAR" "FireID"    "JanTMinF1"
+    ##  [37] "JanTMinF2" "JanTMinF3" "JanTMinF4" "JanTMinF5" "JulTMaxF1" "JulTMaxF2"
+    ##  [43] "JulTMaxF3" "JulTMaxF4" "JulTMaxF5" "NLCD1992"  "NLCD2001"  "NLCD2004" 
+    ##  [49] "NLCD2006"  "NLCD2008"  "NLCD2011"  "NLCD2013"  "NLCD2016"  "TCC2000"  
+    ##  [55] "TCC2005"   "TCC2010"   "WID"       "WSpptF1"   "WSpptF2"   "WSpptF3"  
+    ##  [61] "WSpptF4"   "WSpptF5"   "aspect"    "b1"        "burnSev"   "clusterID"
+    ##  [67] "distance"  "eastness"  "elevation" "facts1987" "facts1988" "facts1989"
+    ##  [73] "facts1990" "facts1991" "facts1992" "facts1993" "facts1994" "facts1995"
+    ##  [79] "facts1996" "facts1997" "facts1998" "facts1999" "facts2000" "facts2001"
+    ##  [85] "facts2002" "facts2003" "facts2004" "facts2005" "facts2006" "facts2007"
+    ##  [91] "facts2008" "facts2009" "facts2010" "facts2011" "facts2012" "facts2013"
+    ##  [97] "facts2014" "facts2015" "facts2016" "facts2017" "facts2018" "northness"
+    ## [103] "slope"     "pixelID"
+
+Identifying patches with more than eight pixels. "Clusters" and
+"Patches" are used interchangeably throughout the document.
 
     clusters_with_more_than8_pixels <- df %>% group_by(clusterID) %>%
       summarise(Npixels = length(unique(pixelID))) %>%
       filter(Npixels > 8) %>%
       pull(clusterID)
 
-Creating a landcover data frame
+Creating a data frame that has the landcover classifications of each
+pixel in years where the NLCD landcover data is available.
 
     landcover <- names(df)[grep(names(df), pattern = "NLCD")]
 
@@ -94,7 +121,8 @@ Creating a landcover data frame
     ## 10 10      0         NLCD1992              42 evergreen_forest  1992
     ## # … with 262,510 more rows
 
-Creating a tree canopy cover df
+Creating a tree canopy cover df in years where % tree canopy cover data
+is available
 
     TCC <- names(df)[grep(names(df), pattern = "TCC")]
 
@@ -125,7 +153,8 @@ Creating a tree canopy cover df
     ## 10 10      0         TCC2000      54  2000
     ## # … with 98,435 more rows
 
-Creating an NBR dataframe
+Creating an NBR dataframe showing the NBR value in each pixel for each
+year.
 
     years <- as.character(1985:2017)
     df_nbr <- df %>%
@@ -156,7 +185,8 @@ Creating an NBR dataframe
     ## 10 10       632.  1985
     ## # … with 1,082,885 more rows
 
-Creating a FACTS df
+Creating a FACTS df showing which pixels were planted with trees after
+the 1987 fires
 
     facts_cols <- names(df)[grep(names(df), pattern = "facts")]
     df_facts <- df %>%
@@ -245,7 +275,8 @@ Merging dfs together
 
     #adding the ecotype descriptions
 
-Checking representation of forest types. Make this a table.
+Checking representation of forest types in our sample of pixels. The
+majority are "mixed conifer dry to mesic", and "mixed conifer mesic".
 
     #representation of forest types
     df %>%
@@ -271,7 +302,8 @@ Checking representation of forest types. Make this a table.
 
     ## [1] 600
 
-Exploring patch size in hectares and pixels
+Exploring distribution of patch size in units of hectares and pixels in
+our sample
 
     df %>%
       group_by(clusterID) %>%
@@ -314,7 +346,9 @@ Exploring patch size in hectares and pixels
     ## [1] 273.564
 
 Quantifying how many pixels went from non-forest back to forest in their
-post-fire regeneration trajectory
+post-fire regeneration trajectory. These are the pixels of interest for
+this analysis because we are not interested in pixels that were never
+denuded of forest.
 
     `%notin%` <- Negate(`%in%`)
 
@@ -330,8 +364,64 @@ post-fire regeneration trajectory
 
     ## [1] 4576
 
-Adding the percent NBR recovey to the df. %NBR recovery is the fraction
-of mean pre-fire NBR
+Plotting the fraction of pixels in each patch that were classified as
+forest in multiple years since the time of fire. The below plot shows
+these fractions from 1992 to 2016 (the fire was in 1987).
+
+    #create a data frame of the change in forest cover for each patch (cluster = patch)
+    length(clusters_with_more_than8_pixels) # number of patches in the sample. Patches with less than 8 pixels were excluded.
+
+    ## [1] 455
+
+    patches <- sample(clusters_with_more_than8_pixels,100)
+
+    df %>%
+      filter(burnSev > 1) %>%
+      filter(clusterID %in% clusters_with_more_than8_pixels) %>%
+      drop_na(land_cover_name) %>%
+      group_by(clusterID,year) %>%
+      summarise(pct_tree = sum(landcover_code %in% 41:43) / length(landcover_code)) %>%
+      filter(clusterID %in% patches) %>%
+      ggplot(aes(year,pct_tree, group = clusterID)) +
+      geom_point() +
+      geom_line() +
+      adams_theme +
+      theme(legend.position = "none") +
+      scale_x_continuous(n.breaks = 7, limits = c(1992,2016)) +
+      ylab(label = "Tree Cover Fraction Per Patch")
+
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-13-1.png)
+
+Whats the distribution of changes in the fractional area of tree cover
+between 2016 and 1992 for the patches in our sample? Below we see that
+most patches did not change their area of tree cover, while some
+accumulated more tree cover and other accumulated less.
+
+    #Calculating the patch-level dependent variable (% change in tree cover)
+    patch_level_percent_change_in_forest_cover <- df %>%
+      #filter(burnSev > 1) %>%
+      filter(clusterID %in% clusters_with_more_than8_pixels) %>%
+      drop_na(land_cover_name) %>%
+      group_by(clusterID,year) %>%
+      summarise(pct_tree = sum(landcover_code %in% 41:43) / length(landcover_code),
+                n_pixels = length(unique(pixelID))) %>%
+      group_by(clusterID) %>%
+      summarise(pct_change_tree = pct_tree[year==2016] - pct_tree[year==1992],
+                n_pixels = head(n_pixels,1))
+
+    #plotting the distribution of changes in the fractional area of tree cover between 2016 and 1992 for the patches in our sample
+    patch_level_percent_change_in_forest_cover %>%
+     ggplot(aes(pct_change_tree)) +
+      geom_histogram() +
+      adams_theme +
+      xlab(label = "% change in tree cover (1992-2016)")
+
+    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-14-1.png)
+
+Pre-fire NBR is a measure of how much vegetation was in the pixel before
+the fire.
 
     #creating pre-fire NBR values for each pixel
     pre_fire_nbr <- df %>% 
@@ -346,6 +436,288 @@ of mean pre-fire NBR
 
     ## Joining, by = "pixelID"
 
+Calculating the patch-level continuous predictor vars
+
+    patch_level_continuous_vars <- df %>%
+      select(clusterID, pixelID, burnSev,northness,eastness,elevation,slope,preFireNBR, distance) %>%
+      #mutate_at(vars(ecotype_code, factsTreatmentCode, WID),as.factor) %>%
+      #filter(burnSev > 1) %>%
+      filter(clusterID %in% clusters_with_more_than8_pixels) %>%
+      group_by(clusterID) %>%
+      summarise_if(is.numeric,mean)
+    names(patch_level_continuous_vars)
+
+    ## [1] "clusterID"  "burnSev"    "northness"  "eastness"   "elevation" 
+    ## [6] "slope"      "preFireNBR" "distance"
+
+Calculating the patch-level categorical predictor vars
+
+    getmode <- function(x) {
+       uniqv <- unique(x)
+       uniqv[which.max(tabulate(match(x, uniqv)))]
+    }
+
+    patch_level_categorical_vars <- df %>%
+      select(clusterID,pixelID,ecotype_code, eco_type, factsTreatmentCode, WID) %>%
+      mutate_at(vars(ecotype_code, eco_type, factsTreatmentCode, WID),as.factor) %>%
+      #filter(burnSev > 1) %>%
+      filter(clusterID %in% clusters_with_more_than8_pixels) %>%
+      group_by(clusterID) %>%
+      summarise_if(is.factor,getmode) 
+
+    #instead of calculating the mode of the facts treatments in each patch, here we create another variable that says a patch is "treated" (i.e. logical value of `1`) if any pixel in the patch was treated.
+
+    facts_treatment_df_v2 <- df %>%
+      select(clusterID,pixelID,factsTreatmentCode) %>%
+      group_by(clusterID) %>%
+      summarise(factsTreatment = max(factsTreatmentCode)) %>%
+      mutate(factsTreatmentLogical = factor(as.numeric(factsTreatment > 1)))
+
+    ## Warning: Factor `clusterID` contains implicit NA, consider using
+    ## `forcats::fct_explicit_na`
+
+    patch_level_categorical_vars <-patch_level_categorical_vars %>%
+      left_join(facts_treatment_df_v2)
+
+    ## Joining, by = "clusterID"
+
+    #names(patch_level_categorical_vars)
+
+Joining patch-level dataframes to have the continuous predictor vars,
+the categorical predictor vars, and the dependent variables in one df.
+
+    patch_data  <- patch_level_percent_change_in_forest_cover %>%
+      left_join(patch_level_continuous_vars, by = "clusterID") %>%
+      left_join(patch_level_categorical_vars, by = "clusterID") %>%
+      select(-clusterID, -n_pixels)
+
+    patch_data
+
+    ## # A tibble: 454 x 14
+    ##    pct_change_tree burnSev northness eastness elevation slope preFireNBR
+    ##              <dbl>   <dbl>     <dbl>    <dbl>     <dbl> <dbl>      <dbl>
+    ##  1         -0.0215 0.00499    0.0298   0.0264     1079.  19.2       597.
+    ##  2         -0.0833 1.08      -0.774    0.627      1629.  28.0       653.
+    ##  3         -0.375  3.31       0.643    0.731      1177.  26.8       536.
+    ##  4         -0.105  3.32       0.395    0.850      1153.  26.4       481.
+    ##  5         -0.20   3.1        0.365    0.914      1023   27.9       479.
+    ##  6         -0.05   3.55       0.0851   0.866      1088.  26.2       494.
+    ##  7         -0.198  1.95      -0.719    0.322       691.  24.5       624.
+    ##  8         -0.0820 1.90      -0.664   -0.251       676.  23.1       715.
+    ##  9         -0.337  2.13      -0.884   -0.271       791.  27.5       636.
+    ## 10          0      2         -0.913   -0.211       516.  20.9       731.
+    ## # … with 444 more rows, and 7 more variables: distance <dbl>,
+    ## #   ecotype_code <fct>, eco_type <fct>, factsTreatmentCode <fct>, WID <fct>,
+    ## #   factsTreatment <dbl>, factsTreatmentLogical <fct>
+
+Exploring correlations between variables
+
+    library(ggcorrplot)
+
+    corr <- patch_data %>%
+      select_if(is.numeric) %>%
+      cor() %>% round(1)
+
+    Pmat <- patch_data %>%
+      select_if(is.numeric) %>%
+      cor_pmat()
+
+    ggcorrplot(corr, hc.order = TRUE, type = "lower",
+       lab = TRUE, p.mat = Pmat)
+
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-19-1.png)
+
+Analyzing forest recovery by forest type. The Mixed Conifer Mesic Forest
+type appears to have quicker forest regeneration.
+
+    patch_data %>%
+      ggplot(aes(x = eco_type,y = pct_change_tree)) +
+      geom_boxplot() +
+      ylab(label = "% change in tree cover (1992-2016)") +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-20-1.png)
+
+Analyzing the effect of the USFS planting trees on the future
+physiognomic class in fire-affected pixels using data from the Forest
+Activity Tracking System dataset.
+
+First look at % transitioning in treated and untreated pixels
+
+    nonforest1992 <- df %>% 
+      select(pixelID, year, landcover_code, factsTreatmentCode) %>%
+      filter(year == 1992, landcover_code %notin% 41:43) %>% pull(pixelID)
+    forest2016 <- df %>% 
+      select(pixelID, year, landcover_code, factsTreatmentCode) %>%
+      filter(year == 2016, landcover_code %in% 41:43) %>% pull(pixelID)
+    transition2forest <- unique(df$pixelID[(df$pixelID %in% nonforest1992) & (df$pixelID %in% forest2016)])
+
+    #transition2forest
+    df %>%
+      select(pixelID, year, landcover_code, factsTreatmentCode) %>%
+      mutate(transitioned = pixelID %in% transition2forest) %>%
+      mutate(planting = factsTreatmentCode %in% c(4431,4432)) %>%
+      group_by(pixelID) %>%
+      summarise(transitioned = max(transitioned), planted = max(planting)) %>%
+      group_by(planted) %>%
+      summarise(percent_trans = sum(transitioned) / length(transitioned), n = length(transitioned)) %>%
+      ggplot(aes(factor(planted),percent_trans)) +
+      geom_bar(stat = "identity") +
+      ylab(label = "percent of pixels regenerating back to forest") +
+      xlab(label = "not planted = 0, planted = 1")
+
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-21-1.png)
+
+Setting up a datafram to test the difference in differences between
+paired control and planted pixels. Groups of pixels that are in the same
+patch, but that differ in their treatement (planted vs. not planted) are
+matched.
+
+    facts_treatment_df <- df %>%
+      filter(year > 1986) %>%
+      select(clusterID, pixelID, year, landcover_code, factsTreatmentCode) %>%
+      mutate(transitioned = pixelID %in% transition2forest) %>%
+      mutate(planting = factsTreatmentCode %in% c(4431,4432)) %>%
+      #filter(clusterID %in% cluster_with_treatment) %>%
+      group_by(pixelID) %>% summarise(clusterID = first(clusterID), tr = first(transitioned), pl = max(planting)) %>%
+      group_by(clusterID,pl) %>% summarise(n_tr = sum(tr), n = length(tr)) %>%
+      mutate(frac_tr = n_tr / n) %>%
+      mutate(lnfrac_tr = log(frac_tr + 0.000001)) %>%
+      mutate(treatment = case_when(
+        (pl == 0 ~ "control"),
+        (pl == 1 ~ "planted")
+      ))
+
+    #treatGroup <- plantedVSnot %>% filter(pl == 1) %>% pull(frac_tr)
+
+    #ControlGroup <- plantedVSnot %>% filter(pl == 0) %>% pull(frac_tr)
+
+Visualizing data
+
+    facts_treatment_df %>%
+      ggplot(aes(factor(treatment),frac_tr)) +
+      geom_boxplot() +
+      stat_summary(fun.y = mean, geom="point",colour="darkred", size=3) +
+      ylab("percent of pixels regenerating back to forest") +
+      xlab("treatment group")+
+      labs(title = "the effect of planting on patch-level forest regeneration (30 yrs post fire)")
+
+    ## Warning: `fun.y` is deprecated. Use `fun` instead.
+
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-23-1.png)
+
+The dependent variable (y axis in figure above) needs to be log
+transformed for statistical analysis because it is not normally
+distributed. A log transform resolves this.
+
+    facts_treatment_df %>%
+    ggplot(aes(frac_tr)) +
+    geom_histogram()
+
+    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-24-1.png)
+
+    facts_treatment_df %>%
+    ggplot(aes(log(frac_tr))) +
+    geom_histogram()
+
+    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+
+    ## Warning: Removed 394 rows containing non-finite values (stat_bin).
+
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-24-2.png)
+
+A paired t-test shows that planting does increase forest regeneration 30
+years after fire. The
+
+    clusters_with_treatment <- facts_treatment_df %>%
+      drop_na(clusterID) %>%
+      group_by(clusterID) %>%
+      summarise(nb = length(n)) %>%
+      filter(nb > 1) %>% pull(clusterID)
+
+    facts_treatment_df %>% filter(clusterID %in% clusters_with_treatment)
+
+    ## # A tibble: 608 x 7
+    ## # Groups:   clusterID [304]
+    ##    clusterID      pl  n_tr     n frac_tr lnfrac_tr treatment
+    ##    <fct>       <int> <int> <int>   <dbl>     <dbl> <chr>    
+    ##  1 0               0   129  2003  0.0644     -2.74 control  
+    ##  2 0               1    37   202  0.183      -1.70 planted  
+    ##  3 -1121539616     0     0     4  0         -13.8  control  
+    ##  4 -1121539616     1     1     8  0.125      -2.08 planted  
+    ##  5 -220987546      0     0     2  0         -13.8  control  
+    ##  6 -220987546      1     0     2  0         -13.8  planted  
+    ##  7 -710819746      0     3   166  0.0181     -4.01 control  
+    ##  8 -710819746      1     0     1  0         -13.8  planted  
+    ##  9 -1768238605     0     0    84  0         -13.8  control  
+    ## 10 -1768238605     1     0     8  0         -13.8  planted  
+    ## # … with 598 more rows
+
+    t.test(lnfrac_tr ~ pl, 
+           data = facts_treatment_df %>% filter(clusterID %in% clusters_with_treatment),
+           paired = TRUE)
+
+    ## 
+    ##  Paired t-test
+    ## 
+    ## data:  lnfrac_tr by pl
+    ## t = -4.1462, df = 303, p-value = 4.393e-05
+    ## alternative hypothesis: true difference in means is not equal to 0
+    ## 95 percent confidence interval:
+    ##  -2.3609276 -0.8411826
+    ## sample estimates:
+    ## mean of the differences 
+    ##               -1.601055
+
+But, in what scenarios does planting help the most compared to control?
+The correlation plot below suggests that "tr\_diff" (the difference in
+the % of pixels transitioning back to forest between the treatment group
+and the paired control group) is positively correlated with slope,
+eastness, and pre-Fire NBR value. Therefore, we can assume that planting
+helps regeneration the most on steeper slopes, east-facing slopes, and
+in locations where there was thicker vegetation before the fire. This
+last variable could be a proxy for "site potential".
+
+    facts_cor_data <- facts_treatment_df %>% 
+      filter(clusterID %in% clusters_with_treatment) %>%
+      select(-n_tr, -n,-lnfrac_tr, -pl) %>%
+      spread(key = treatment, value = frac_tr) %>%
+      mutate(tr_diff = planted - control) %>%
+      select(-control,-planted) %>%
+      left_join(patch_level_continuous_vars, by = "clusterID") %>%
+      left_join(patch_level_categorical_vars, by = "clusterID") %>%
+      ungroup %>%
+      select(-factsTreatmentCode, -clusterID) %>%
+      select_if(is.numeric) %>%
+      drop_na()
+
+    corr <- facts_cor_data %>%
+      select_if(is.numeric) %>%
+      cor() %>% round(1)
+
+    Pmat <- facts_cor_data %>%
+      select_if(is.numeric) %>%
+      cor_pmat()
+
+    ggcorrplot(corr, hc.order = TRUE, type = "lower",
+       lab = TRUE, p.mat = Pmat)
+
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-26-1.png)
+
+    facts_cor_data %>%
+      ggplot(aes(x = preFireNBR, y = tr_diff)) +
+      geom_point()
+
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-27-1.png)
+
+Appendix. Exploring NBR recovery over time.
+-------------------------------------------
+
+Adding the % NBR recovey to the df. %NBR recovery is the fraction of
+mean pre-fire NBR
+
 Showing the distribution of NBR values for pixels classified as forest
 for NLCD
 
@@ -359,9 +731,13 @@ for NLCD
       labs(fill="") +
       adams_theme
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-14-1.png)
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-28-1.png)
 
-plot patch-level NBR through time for a random sample of patches
+Plotting the patch-level NBR through time for a random sample of
+patches. We see that NBR starts to saturate (i.e. reach the pre-fire NBR
+value) within about 10-15 years. This is despite the fact that pixels
+have not actually returned to forest. This is evidence that using NBR is
+not suitable of measuring forest recovery.
 
     #patches <- sample(unique(df$clusterID),100)
 
@@ -377,9 +753,10 @@ plot patch-level NBR through time for a random sample of patches
     ## Warning: Factor `clusterID` contains implicit NA, consider using
     ## `forcats::fct_explicit_na`
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-15-1.png)
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-29-1.png)
 
-Calculating the percent NBR recovery for each patch
+Plotting the percent NBR recovery for each patch. This shows NBR as a
+percent of the pre-fire values.
 
     #patches <- sample(unique(df$clusterID),10)
     df %>%
@@ -398,7 +775,7 @@ Calculating the percent NBR recovery for each patch
 
     ## Warning: Removed 625 row(s) containing missing values (geom_path).
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-16-1.png)
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-30-1.png)
 
 Histogram of percent recovery in 2000 (6 years after fire)
 
@@ -416,7 +793,7 @@ Histogram of percent recovery in 2000 (6 years after fire)
 
     ## Warning: Removed 397 rows containing non-finite values (stat_density).
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-17-1.png)
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-31-1.png)
 
 Density plot of percent recovery in 2017 (23 years after fire)
 
@@ -434,7 +811,7 @@ Density plot of percent recovery in 2017 (23 years after fire)
 
     ## Warning: Removed 1108 rows containing non-finite values (stat_density).
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-18-1.png)
+![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-32-1.png)
 
 Creating variables showing the percent NBR recovery in 92,97,2017
 
@@ -496,269 +873,3 @@ fire). This is commented out because it was crashing R studio.
     #   scale_y_continuous() +
     #   xlim(c(0,500)) +
     #   adams_theme
-
-plot % tree cover over time for a random sample of clusters
-
-    #create data frame of the change in forest cover for each cluster
-    length(clusters_with_more_than8_pixels)
-
-    ## [1] 455
-
-    patches <- sample(clusters_with_more_than8_pixels,100)
-
-    df %>%
-      filter(burnSev > 1) %>%
-      filter(clusterID %in% clusters_with_more_than8_pixels) %>%
-      drop_na(land_cover_name) %>%
-      group_by(clusterID,year) %>%
-      summarise(pct_tree = sum(landcover_code %in% 41:43) / length(landcover_code)) %>%
-      filter(clusterID %in% patches) %>%
-      ggplot(aes(year,pct_tree,color = clusterID)) +
-      geom_point() +
-      geom_line() +
-      adams_theme +
-      theme(legend.position = "none") +
-      scale_x_continuous(n.breaks = 7, limits = c(1992,2016)) +
-      ylab(label = "Proportional Area Trees")
-
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-23-1.png)
-
-Whats the distribution in how much % tree canopy cover changed
-throughout the regeneration trajectory?
-
-    df %>%
-      #filter(burnSev > 1) %>%
-      filter(clusterID %in% clusters_with_more_than8_pixels) %>%
-      #filter(WID > 0) %>%
-      drop_na(land_cover_name) %>%
-      group_by(clusterID,year) %>%
-      summarise(pct_tree = sum(landcover_code %in% 41:43) / length(landcover_code),
-                n_pixels = length(unique(pixelID))) %>%
-      group_by(clusterID) %>%
-      summarise(pct_change_tree = pct_tree[year==2016] - pct_tree[year==1992],
-                n_pixels = head(n_pixels,1)) %>%
-      ggplot(aes(pct_change_tree)) +
-      geom_histogram() +
-      adams_theme +
-      xlab(label = "% change tree cover (2017-1992)")
-
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-24-1.png)
-
-    #A_mean = mean(values[value_type=="A"])
-
-Calculate the patch-level independent variable (% change in forest
-cover)
-
-    patch_level_percent_change_in_forest_cover <- df %>%
-      #filter(burnSev > 1) %>%
-      filter(clusterID %in% clusters_with_more_than8_pixels) %>%
-      drop_na(land_cover_name) %>%
-      group_by(clusterID,year) %>%
-      summarise(pct_tree = sum(landcover_code %in% 41:43) / length(landcover_code),
-                n_pixels = length(unique(pixelID))) %>%
-      group_by(clusterID) %>%
-      summarise(pct_change_tree = pct_tree[year==2016] - pct_tree[year==1992],
-                n_pixels = head(n_pixels,1))
-
-    names(patch_level_percent_change_in_forest_cover)
-
-    ## [1] "clusterID"       "pct_change_tree" "n_pixels"
-
-Calculate patch-level continuous predictor vars
-
-    patch_level_continuous_vars <- df %>%
-      select(clusterID, pixelID, burnSev,northness,eastness,elevation,slope,preFireNBR, distance) %>%
-      #mutate_at(vars(ecotype_code, factsTreatmentCode, WID),as.factor) %>%
-      #filter(burnSev > 1) %>%
-      filter(clusterID %in% clusters_with_more_than8_pixels) %>%
-      group_by(clusterID) %>%
-      summarise_if(is.numeric,mean)
-    names(patch_level_continuous_vars)
-
-    ## [1] "clusterID"  "burnSev"    "northness"  "eastness"   "elevation" 
-    ## [6] "slope"      "preFireNBR" "distance"
-
-Calculate patch-level categorical predictor vars
-
-    getmode <- function(x) {
-       uniqv <- unique(x)
-       uniqv[which.max(tabulate(match(x, uniqv)))]
-    }
-
-    patch_level_categorical_vars <- df %>%
-      select(clusterID,pixelID,ecotype_code, eco_type, factsTreatmentCode, WID) %>%
-      mutate_at(vars(ecotype_code, eco_type, factsTreatmentCode, WID),as.factor) %>%
-      #filter(burnSev > 1) %>%
-      filter(clusterID %in% clusters_with_more_than8_pixels) %>%
-      group_by(clusterID) %>%
-      summarise_if(is.factor,getmode) 
-
-    names(patch_level_categorical_vars)
-
-    ## [1] "clusterID"          "ecotype_code"       "eco_type"          
-    ## [4] "factsTreatmentCode" "WID"
-
-Joining patch-level dataframes
-
-    patch_data  <- patch_level_percent_change_in_forest_cover %>%
-      left_join(patch_level_continuous_vars, by = "clusterID") %>%
-      left_join(patch_level_categorical_vars, by = "clusterID") %>%
-      select(-clusterID, -n_pixels)
-
-    patch_data
-
-    ## # A tibble: 454 x 12
-    ##    pct_change_tree burnSev northness eastness elevation slope preFireNBR
-    ##              <dbl>   <dbl>     <dbl>    <dbl>     <dbl> <dbl>      <dbl>
-    ##  1         -0.0221 0.00500    0.0288   0.0259     1079.  19.2       598.
-    ##  2         -0.0833 1.08      -0.774    0.627      1629.  28.0       653.
-    ##  3         -0.375  3.31       0.643    0.731      1177.  26.8       536.
-    ##  4         -0.105  3.32       0.395    0.850      1153.  26.4       481.
-    ##  5         -0.20   3.1        0.365    0.914      1023   27.9       479.
-    ##  6         -0.05   3.55       0.0851   0.866      1088.  26.2       494.
-    ##  7         -0.198  1.95      -0.719    0.322       691.  24.5       624.
-    ##  8         -0.0820 1.90      -0.664   -0.251       676.  23.1       715.
-    ##  9         -0.337  2.13      -0.884   -0.271       791.  27.5       636.
-    ## 10          0      2         -0.913   -0.211       516.  20.9       731.
-    ## # … with 444 more rows, and 5 more variables: distance <dbl>,
-    ## #   ecotype_code <fct>, eco_type <fct>, factsTreatmentCode <fct>, WID <fct>
-
-Exploring correlations between variables
-
-    library(ggcorrplot)
-
-    corr <- patch_data %>%
-      select_if(is.numeric) %>%
-      cor() %>% round(1)
-
-    Pmat <- patch_data %>%
-      select_if(is.numeric) %>%
-      cor_pmat()
-
-    ggcorrplot(corr, hc.order = TRUE, type = "lower",
-       lab = TRUE, p.mat = Pmat)
-
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-29-1.png)
-
-    patch_data %>%
-      ggplot(aes(x = eco_type,y = pct_change_tree)) +
-      geom_boxplot() +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-30-1.png)
-
-Analyzing the effect of planting trees on the future physiognomic class
-in fire-affected pixels.
-
-First look at % transitioning in treated and untreated pixels
-
-    nonforest1992 <- df %>% 
-      select(pixelID, year, landcover_code, factsTreatmentCode) %>%
-      filter(year == 1992, landcover_code %notin% 41:43) %>% pull(pixelID)
-    forest2016 <- df %>% 
-      select(pixelID, year, landcover_code, factsTreatmentCode) %>%
-      filter(year == 2016, landcover_code %in% 41:43) %>% pull(pixelID)
-    transition2forest <- unique(df$pixelID[(df$pixelID %in% nonforest1992) & (df$pixelID %in% forest2016)])
-
-    #transition2forest
-
-    df %>%
-      select(pixelID, year, landcover_code, factsTreatmentCode) %>%
-      mutate(transitioned = pixelID %in% transition2forest) %>%
-      mutate(planting = factsTreatmentCode %in% c(4431,4432)) %>%
-      group_by(pixelID) %>%
-      summarise(transitioned = max(transitioned), planted = max(planting)) %>%
-      group_by(planted) %>%
-      summarise(percent_trans = sum(transitioned) / length(transitioned), n = length(transitioned)) %>%
-      ggplot(aes(factor(planted),percent_trans)) +
-      geom_bar(stat = "identity")
-
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-31-1.png)
-
-Pixel-level data, difference of differences (i.e. t-test)
-
-    facts_treatment_df <- df %>%
-      filter(year > 1986) %>%
-      select(clusterID, pixelID, year, landcover_code, factsTreatmentCode) %>%
-      mutate(transitioned = pixelID %in% transition2forest) %>%
-      mutate(planting = factsTreatmentCode %in% c(4431,4432)) %>%
-      #filter(clusterID %in% cluster_with_treatment) %>%
-      group_by(pixelID) %>% summarise(clusterID = first(clusterID), tr = first(transitioned), pl = max(planting)) %>%
-      group_by(clusterID,pl) %>% summarise(n_tr = sum(tr), n = length(tr)) %>%
-      mutate(frac_tr = n_tr / n) %>%
-      mutate(lnfrac_tr = log(frac_tr + 0.000001))
-
-    #treatGroup <- plantedVSnot %>% filter(pl == 1) %>% pull(frac_tr)
-
-    #ControlGroup <- plantedVSnot %>% filter(pl == 0) %>% pull(frac_tr)
-
-Visualizing data
-
-    facts_treatment_df %>%
-      ggplot(aes(factor(pl),frac_tr)) +
-      geom_boxplot() +
-      stat_summary(fun.y = mean, geom="point",colour="darkred", size=3) 
-
-    ## Warning: `fun.y` is deprecated. Use `fun` instead.
-
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-33-1.png)
-
-    facts_treatment_df %>%
-    ggplot(aes(frac_tr)) +
-    geom_histogram()
-
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-34-1.png)
-
-    facts_treatment_df %>%
-    ggplot(aes(log(frac_tr))) +
-    geom_histogram()
-
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-
-    ## Warning: Removed 395 rows containing non-finite values (stat_bin).
-
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-34-2.png)
-
-    clusters_with_treatment <- facts_treatment_df %>%
-      drop_na(clusterID) %>%
-      group_by(clusterID) %>%
-      summarise(nb = length(n)) %>%
-      filter(nb > 1) %>% pull(clusterID)
-
-    facts_treatment_df %>% filter(clusterID %in% clusters_with_treatment)
-
-    ## # A tibble: 610 x 6
-    ## # Groups:   clusterID [305]
-    ##    clusterID      pl  n_tr     n frac_tr lnfrac_tr
-    ##    <fct>       <int> <int> <int>   <dbl>     <dbl>
-    ##  1 0               0   128  2004  0.0639     -2.75
-    ##  2 0               1    35   201  0.174      -1.75
-    ##  3 -1121539616     0     0     4  0         -13.8 
-    ##  4 -1121539616     1     1     8  0.125      -2.08
-    ##  5 -220987546      0     0     2  0         -13.8 
-    ##  6 -220987546      1     0     2  0         -13.8 
-    ##  7 -710819746      0     3   166  0.0181     -4.01
-    ##  8 -710819746      1     0     1  0         -13.8 
-    ##  9 -1768238605     0     0    84  0         -13.8 
-    ## 10 -1768238605     1     0     8  0         -13.8 
-    ## # … with 600 more rows
-
-    t.test(lnfrac_tr ~ pl, 
-           data = facts_treatment_df %>% filter(clusterID %in% clusters_with_treatment),
-           paired = TRUE)
-
-    ## 
-    ##  Paired t-test
-    ## 
-    ## data:  lnfrac_tr by pl
-    ## t = -4.2325, df = 304, p-value = 3.064e-05
-    ## alternative hypothesis: true difference in means is not equal to 0
-    ## 95 percent confidence interval:
-    ##  -2.3944237 -0.8745765
-    ## sample estimates:
-    ## mean of the differences 
-    ##                 -1.6345
