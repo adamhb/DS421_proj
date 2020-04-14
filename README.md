@@ -1,6 +1,4 @@
-# Analysis of Post-fire Forest Regeneration and the Efficacy of Planting Seedlings
-
-This analysis used a wide variety of spatial data products and remote sensing to:
+# Decadal-scale post-fire conifer regeneration in the Klamath Mountains
 
 This research builds off of prior studies (Tepley et al. 2017, Shive et al. 2018, and Young et al. 2019) which seek to predict natural conifer regeneration probabilities as functions of fire characteristics, site conditions, seed availability, climate, and short-term weather in the years following fire. What makes this approach different is the focus on longer term regeneration outcomes rather than looking at the density of seedlings and saplings in the post-fire plant community. We explicitly incorporate post-fire management variables (i.e. spatially explicit data on tree planting events) from the USFS FACTS database. The response variable of interest is (currently: the proportional increase in forest area over a 30 year time frame after severe wildfire in the Klamath eco-region; soon to be: the relative canopy dominance of conifers versus non-conifer vegetation 30 years after wildfire). The research questions are 1) What fire attributes, site characteristics, and climate variables influence conifer forest recovery in severley burned patches? 2) Under what circumstances does tree planting influence the forest recovery outcomes?
 
