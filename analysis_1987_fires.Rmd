@@ -282,7 +282,6 @@ df <- df %>%
 ```
 
 
-
 Calculating the patch-level continuous predictor vars
 ```{r}
 patch_level_continuous_vars <- df %>%
@@ -335,6 +334,20 @@ patch_data  <- patch_level_percent_change_in_forest_cover %>%
 
 patch_data
 ```
+
+
+
+
+
+
+
+```{r}
+names(df)
+```
+
+
+
+
 
 Exploring correlations between variables
 ```{r}
