@@ -53,6 +53,10 @@ SUID_df <- df %>%
 ```
 
 
+```{r}
+str(df)
+str(SUID_df)
+```
 
 
 
