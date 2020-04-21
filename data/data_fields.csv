@@ -1,0 +1,31 @@
+var name,description
+ID,pixel ID
+x,x coord in UTM
+y,y coord in UTM
+burnSev,burn severity (3 or 4) 4 is higher burn severity
+forestType,the type of forest that the patch is tending back towards (from landfire’s biophysical settings)
+SAP_surv_conifers,seed availability proxy based on how many surviving conifer there  were in a 400 m radius
+SAP_burn,seed availability proxy based on the average burn severity of pixels in a 400 m radius
+elevation,in m
+slope,In % grade
+aspect,
+northness,how north facing is the slope
+eastness,how east facing is the slope
+CWD,climate water defiicit (high value is drier)
+AvGppt,mean ppt (30 year history)
+AvGTemp,mean temp 30 years history
+SolarLoad,an index of its solar load (related to topography)
+SUID,the subunit ID that the USFS does different management treatements in
+landfire2016,The 2016 vegetation type (landfire vegetation type code)
+plantedFirst5Years,was it planted within the first five years after the fire
+plant_date,date the SUID was planted
+SPB,"site prep, burned"
+SPO,"site prep, other"
+SPMec,"site prep, mechanical"
+plantedAfter5Yrs,was the SUID planted after 5 years?
+latestSurveyNatDensity,density of regenerating conifers (trees / acre) as determined by USFS in a stocking survey after fire
+certified_plantedIn6Years,did the SUID receive certification that the planting was successul within 6 years of planting?
+LAND_SUITA,a land suitability index from USFS
+PRODUCTIVI,a land productivity index from USFS
+EVT_PHYS,the physiognomic class of the 2016 landfire vegetation type
+conifer,did the pixel go back to conifer forest in 2016?

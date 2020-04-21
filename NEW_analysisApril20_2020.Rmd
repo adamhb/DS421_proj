@@ -1,0 +1,67 @@
+
+---
+title: "analysis_script.Rmd"
+author: "DS421 Team"
+date: "April 20, 2020"
+output: md_document
+---
+Install Packages
+```{r}
+library(tidyverse)
+library(foreign)
+source('scripts/adams_theme.R') #for ggplot2
+```
+
+Import data
+```{r}
+df <- readRDS('data/cleanDataApril20_v2.Rds')
+#this csv describe each ecotype code
+eco_type_codes <- read_csv('data/landfire_ecotype_codes.csv')
+
+landfire_codes <- foreign::read.dbf("data/US_200EVT\\US_200EVT.dbf")
+landfire_codes <- landfire_codes %>% dplyr::select(VALUE,EVT_PHYS) %>% rename(landfire2016 = VALUE)
+
+n_pixels <- nrow(df) #number of pixels in the dataset 
+n_pixels
+```
+
+
+```{r}
+#cleaning
+df <- df %>%
+  left_join(landfire_codes) %>%
+  mutate(conifer = case_when(
+    (EVT_PHYS == "Conifer" | EVT_PHYS == "Conifer-Hardwood") ~ TRUE,
+    TRUE ~ FALSE
+  ))
+#str(df)
+```
+
+exporting fields to make field descriptions
+```{r}
+#names(df) %>% as.tibble() %>% write_csv(path = "data/data_fields.csv")
+```
+
+
+creating dataframe at the SUID level
+```{r}
+SUID_df <- df %>%
+  mutate_at(.vars = "SUID", .funs = as.factor) %>%
+  drop_na(SUID) %>%
+  group_by(SUID) %>%
+  summarise_if(.predicate = is.numeric, .funs = mean) 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
