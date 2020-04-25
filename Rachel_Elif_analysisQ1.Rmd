@@ -1,0 +1,200 @@
+
+---
+title: "analysis_script.Rmd"
+author: "DS421 Team"
+date: "April 20, 2020"
+output: md_document
+---
+Install Packages
+```{r}
+library(tidyverse)
+library(foreign)
+source('scripts/adams_theme.R') #for ggplot2
+```
+
+Import data
+```{r}
+df <- readRDS('data/cleanDataApril20_v2.Rds')
+#this csv describe each ecotype code
+eco_type_codes <- read_csv('data/landfire_ecotype_codes.csv')
+
+landfire_codes <- foreign::read.dbf("data/US_200EVT\\US_200EVT.dbf")
+landfire_codes <- landfire_codes %>% dplyr::select(VALUE,EVT_PHYS) %>% rename(landfire2016 = VALUE)
+
+n_pixels <- nrow(df) #number of pixels in the dataset 
+n_pixels
+```
+
+
+```{r}
+#cleaning
+df <- df %>%
+  left_join(landfire_codes) %>%
+  mutate(conifer = case_when(
+    (EVT_PHYS == "Conifer" | EVT_PHYS == "Conifer-Hardwood") ~ TRUE,
+    TRUE ~ FALSE
+  ))
+#str(df)
+```
+
+exporting fields to make field descriptions
+```{r}
+#names(df) %>% as.tibble() %>% write_csv(path = "data/data_fields.csv")
+```
+
+
+creating dataframe at the SUID level
+```{r}
+SUID_df <- df %>%
+  mutate_at(.vars = "SUID", .funs = as.factor) %>%
+  drop_na(SUID) %>%
+  group_by(SUID) %>%
+  summarise_if(.predicate = is.numeric, .funs = mean) 
+```
+
+
+```{r}
+str(df)
+str(SUID_df)
+SUID_df$latestSurveyNatDensity
+```
+
+
+
+```{r}
+#looking at distributions...
+hist(SUID_df$latestSurveyNatDensity)
+mean(SUID_df$latestSurveyNatDensity)
+#151
+var(SUID_df$latestSurveyNatDensity)
+#118805
+
+#overdispered
+
+
+hist(SUID_df$burnSev)
+hist(SUID_df$SAP_burn)
+hist(SUID_df$PRODUCTIVI)
+
+hist(SUID_df$elevation)
+hist(SUID_df$slope)
+hist(SUID_df$AvGppt)
+hist(SUID_df$CWD)
+hist(SUID_df$AvGTemp)
+hist(SUID_df$SolarLoad)
+plot(SUID_df$AvGppt, SUID_df$latestSurveyNatDensity)
+```
+
+```{r}
+#pairs at the SUID level
+with(SUID_df, pairs(SUID_df[, c('latestSurveyNatDensity', 'burnSev', 'slope', 'elevation', 'CWD', 'SolarLoad')])) #, 'SPB', 'SPO', 'SPMec', 'LAND_SUITA', 'PRODUCTIVI')]))
+
+with(SUID_df, pairs(SUID_df[, c('latestSurveyNatDensity', 'burnSev', 'slope', 'elevation', 'CWD', 'SolarLoad', 'LAND_SUITA', 'PRODUCTIVI')]))
+
+
+with(SUID_df, pairs(SUID_df[, c('latestSurveyNatDensity', 'burnSev', 'LAND_SUITA', 'PRODUCTIVI', 'SPB')]))
+```
+
+
+```{r}
+#environmental variables
+#different fits, just playing around
+#need to return to this and fit a GAM w/ diff families
+
+
+Fit1 <- glm(formula = latestSurveyNatDensity ~ burnSev + slope + elevation + CWD+ SolarLoad + AvGppt + northness + eastness + aspect, data = SUID_df)
+summary(Fit1)
+
+Fit1_p <- glm(formula = latestSurveyNatDensity ~ burnSev + slope + elevation + CWD+ SolarLoad+ AvGppt + northness + eastness + aspect, data = SUID_df, family = poisson())
+summary(Fit1_p)
+
+Fit1_qp <- glm(formula = latestSurveyNatDensity ~ burnSev + slope + elevation + CWD+ SolarLoad+ AvGppt + northness + eastness + aspect, data = SUID_df, family =quasipoisson())
+summary(Fit1_qp)
+```
+
+```{r}
+library(MASS)
+#need the MASS package to use negative binomial
+#negative biomial bc variance is much larger than mean
+Fit1_nb <- glm.nb(formula = latestSurveyNatDensity ~ burnSev + slope + elevation + CWD+ SolarLoad+ AvGppt + northness + eastness + aspect, data = SUID_df)
+summary(Fit1_nb)
+
+
+#environmental variables + land management 
+Fit2<- glm(formula = latestSurveyNatDensity ~ burnSev + slope + elevation + CWD+ SolarLoad + SPB + SPO + SPMec, data = SUID_df)
+summary(Fit2)
+
+Fit2_p <- glm(formula = latestSurveyNatDensity ~ burnSev + slope + elevation + CWD+ SolarLoad + SPB + SPO + SPMec, data = SUID_df, family = poisson())
+summary(Fit2_p)
+
+Fit2_qp <- glm(formula = latestSurveyNatDensity ~ burnSev + slope + elevation + CWD+ AvGppt + AvGTemp + SolarLoad + SPB + SPO + SPMec, data = SUID_df, family = quasipoisson())
+summary(Fit2_qp)
+
+
+
+#Fit 1 includes environmental predictors only (reduced model)
+#Fit 3 includes environmental predictors + land management (full model)
+anova(Fit1, Fit2)
+```
+
+ANOVA F test shows significant difference between the reduced(env only) & full model(+mgmt) (niether of these includes FS indices for land suitabiltiy / productivity)
+
+
+```{r}
+#environmental + management + FS measures of productivity/suitability
+#What does FS use to create suitability & productivity indices?
+Fit3 <- lm(formula = latestSurveyNatDensity ~ burnSev + slope + elevation + CWD+ SolarLoad + LAND_SUITA + PRODUCTIVI, data = SUID_df)
+summary(Fit3)
+
+#environmental + FS land suitabiltiy & productivity indices
+Fit4 <- lm(formula = latestSurveyNatDensity ~ burnSev + slope + elevation + CWD + SolarLoad + LAND_SUITA + PRODUCTIVI + SPB + SPO + SPMec, data = SUID_df)
+summary(Fit4)
+#productivity most predictive
+
+anova(Fit3, Fit4)
+```
+No significan difference between models where productivity & suitability indices are included
+
+```{r}
+Fit5 <- lm(formula = latestSurveyNatDensity ~ PRODUCTIVI + burnSev, data = SUID_df)
+summary(Fit5)
+
+Fit6 <- lm(formula = latestSurveyNatDensity ~ PRODUCTIVI + burnSev + SPB + SPO + SPMec, data = SUID_df)
+summary(Fit6)
+           
+anova(Fit5, Fit6)
+```
+
+```{r}
+#all env variables
+Fit7 <- lm(formula = latestSurveyNatDensity ~ burnSev + SAP_surv_conifers + SAP_burn + elevation + slope + aspect + northness + eastness + CWD + AvGppt + AvGTemp + SolarLoad, + PRODUCTIVI, data = SUID_df)
+summary(Fit7)
+
+Fit8 <- lm(formula = latestSurveyNatDensity ~ burnSev + SAP_surv_conifers + SAP_burn + elevation + slope + aspect + northness + eastness + CWD + AvGppt + AvGTemp + SolarLoad + PRODUCTIVI+ SPB + SPO + SPMec + plantedAfter5Yrs, data = SUID_df)
+summary(Fit8)
+
+plot(SUID_df$PRODUCTIVI, SUID_df$AvGppt)
+
+
+```
+
+```{r}
+layout(matrix(c(1, 2, 3, 4), 2, 2))
+plot(Fit1)
+plot(Fit2)
+```
+
+```{r}
+#AIC for variable selection 
+AICfit <- step(Fit8, trace = 0)
+summary(AICfit)
+```
+
+```{r}
+#dist of latestSurveyNatDensity doesn't look gaussian
+#quiasipoisson?
+
+Fit9 <- glm(formula = latestSurveyNatDensity ~ burnSev + SAP_surv_conifers + SAP_burn + elevation + slope + aspect + northness + eastness + CWD + AvGppt + AvGTemp + SolarLoad + PRODUCTIVI+ SPB + SPO + SPMec + plantedAfter5Yrs, data = SUID_df, family = "quasipoisson")
+summary(Fit9)
+```
+
