@@ -68,7 +68,9 @@ SUID_df$latestSurveyNatDensity
 
 ```{r}
 #looking at distributions...
-hist(SUID_df$latestSurveyNatDensity)
+hist(SUID_df$latestSurveyNatDensity, xlab = "Seedling Density", main = "Histogram of Natural Regeneration Seedling Desnity")
+
+
 mean(SUID_df$latestSurveyNatDensity)
 #151
 var(SUID_df$latestSurveyNatDensity)
@@ -104,7 +106,7 @@ CWD
 SolarLoad
 ...
 
-For site preparation: SPB, SPO, and SPMed
+For site preparation: SPB, SPO, and SPMec
 
 
 ```{r}
@@ -131,7 +133,7 @@ hist(filtered_df$latestSurveyNatDensity)
 
 ```{r}
 str(filtered_df)
-x <- as.matrix(filtered_df %>% dplyr::select(c(burnSev, forestType, SAP_surv_conifers, SAP_burn, elevation, slope, northness, eastness, CWD, plantedFirst5Years, plantedAfter5Yrs, LAND_SUITA, PRODUCTIVI, SPB, SPO, SPMec)))
+x <- as.matrix(filtered_df %>% dplyr::select(c(burnSev, forestType, SAP_surv_conifers, SAP_burn, elevation, slope, northness, eastness, CWD, AvGppt, AvGTemp, plantedFirst5Years, plantedAfter5Yrs, LAND_SUITA, PRODUCTIVI, SPB, SPO, SPMec)))
 y <- as.numeric(filtered_df$latestSurveyNatDensity)
 
 #x_standardized = (x - x_m)/x_std
@@ -148,7 +150,7 @@ hist(x_standardized[,5])
 # x_standardized + noise
 dim(x)[2]
 #degrees = basis functions. SPO, SPB, SPMech are binary, which is why I'm setting their "degree" to 1
-fit_gamsel <- gamsel(x_standardized, y, degrees=c(1, 1, 10, 10, 10,10,10,10,10,1,1,1, 1, 1, 1, 1))
+fit_gamsel <- gamsel(x_standardized, y, degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1, 1, 1, 1, 1))
 summary(fit_gamsel)
 
 ## ?? I don't understand what newx is supposed to be: "nobs_new x p matrix giving values of each predictor at which to plot."
@@ -156,8 +158,10 @@ summary(fit_gamsel)
 plot.gamsel(fit_gamsel, newx = x_standardized)
 print.gamsel(fit_gamsel)
 
-#abondoning this attempt. I would need to spend more time figuring out what's going on under the hood of this package, and I don't think using the pixels checks out, because these aren't independent observations of density but taken from the SUID 
+#I would need to spend more time figuring out what's going on under the hood of this package, and I don't think using the pixels checks out, because these aren't independent observations of density but taken from the SUID 
 
+
+#
 ```
 
 
@@ -170,10 +174,17 @@ library(gam)
 fit1_gam <- gam(formula = latestSurveyNatDensity ~ burnSev + slope + elevation + CWD +  northness + eastness, data = SUID_df, family = quasipoisson())
 summary(fit1_gam)
 
-fit2_gam <- gam(formula = latestSurveyNatDensity ~ burnSev + slope + elevation + CWD +  northness + eastness + SPB+ SPO + SPMec + plantedFirst5Years + plantedAfter5Yrs, data = SUID_df, family = quasipoisson())
+fit2_gam <- gam(formula = latestSurveyNatDensity ~ burnSev + forestType + slope + elevation + AvGTemp + AvGppt+ CWD +  northness + eastness + SPB+ SPO + SPMec + plantedFirst5Years + plantedAfter5Yrs, data = SUID_df, family = quasipoisson())
 summary(fit2_gam)
 
 anova(fit1_gam, fit2_gam)
+
+
+SUID_df
+
+fit2.5_gam <- gam(formula = latestSurveyNatDensity ~ burnSev + forestType + slope + aspect + elevation + AvGTemp + AvGppt+ SolarLoad + landfire2016 + CWD + northness + eastness + SPB+ SPO + SPMec + plantedFirst5Years + plantedAfter5Yrs + LAND_SUITA + PRODUCTIVI, data = filtered_df, family = quasipoisson())
+
+summary(fit2.5_gam)
 ```
 
 
@@ -187,11 +198,24 @@ Fit1_nb <- glm.nb(formula = latestSurveyNatDensity ~ burnSev + forestType +slope
 summary(Fit1_nb)
 
 Fit2_nb <-glm.nb(formula = latestSurveyNatDensity ~ burnSev + forestType +slope + elevation + CWD+ northness + eastness + SPB + SPO + SPMec + plantedFirst5Years + plantedAfter5Yrs, data = SUID_df)
-#did not converge
-Fit2_nb <-glm.nb(formula = latestSurveyNatDensity ~ burnSev + forestType +slope + elevation + CWD+ northness + eastness + SPB + SPO + SPMec, data = SUID_df)
 summary(Fit2_nb)
+#did not converge
 
 anova(Fit1_nb, Fit2_nb)
+
+
+#with filtered df: 
+#removing LAND_SUITA
+#removing planted -- correlated w site potential?
+
+
+Fit2.5_nb <-glm.nb(formula = latestSurveyNatDensity ~ burnSev + slope + elevation + northness + eastness + AvGppt + AvGTemp + SPB + SPO + SPMec + PRODUCTIVI, data = filtered_df)
+
+summary(Fit2.5_nb)
+
+SUID_df$LAND_SUITA
+
+
 
 ```
 
@@ -208,9 +232,13 @@ summary(Fit3)
 #environmental + FS land suitabiltiy & productivity indices
 Fit4 <- lm(formula = latestSurveyNatDensity ~ burnSev + forestType + SAP_surv_conifers + SAP_burn +slope + elevation + CWD+ SolarLoad + LAND_SUITA + PRODUCTIVI + SPB + SPO + SPMec, data = SUID_df)
 summary(Fit4)
+
 #productivity most predictive
 
 anova(Fit3, Fit4)
+
+
+
 ```
 No significan difference between models where productivity & suitability indices are included
 
@@ -236,7 +264,34 @@ plot(Fit2)
 ```{r}
 #fit 8 is a GLM with all vars included
 #AIC for variable selection 
-AICfit <- step(Fit8, trace = 0)
+?step
+Fit9 <- glm(formula = latestSurveyNatDensity ~ burnSev + forestType + SAP_surv_conifers + SAP_burn + elevation + slope + aspect + northness + eastness + CWD + AvGppt + AvGTemp + SolarLoad + PRODUCTIVI+ SPB + SPO + SPMec + plantedAfter5Yrs + plantedFirst5Years, data = filtered_df, family= quasipoisson())
+
+summary(Fit9)
+
+
+
+Fit10 <- lm(formula = latestSurveyNatDensity ~ burnSev + forestType + SAP_surv_conifers + SAP_burn + elevation + slope + aspect + northness + eastness + CWD + AvGppt + AvGTemp + SolarLoad + PRODUCTIVI+ SPB + SPO + SPMec + plantedAfter5Yrs + plantedFirst5Years, data = filtered_df)
+summary(Fit8)
+summary(Fit8)
+summary(Fit9)
+AICfit <- step(Fit10, trace = 0)
 summary(AICfit)
+
+
+Fit11 <- glm(formula = latestSurveyNatDensity ~  elevation + slope + northness + eastness + AvGppt + AvGTemp + PRODUCTIVI + SPB + SPO + SPMec, data = filtered_df, family= quasipoisson())
+
+summary(Fit11)
+```
+
+
+
+
+```{r}
+#run xtable on "summary(of your moodel) " --> latex code to make table 
+#render latex code online
+#screenshot
+library(xtable)
+xtable(summary(Fit11))
 ```
 
