@@ -153,6 +153,8 @@ dim(x)[2]
 fit_gamsel <- gamsel(x_standardized, y, degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1, 1, 1, 1, 1))
 summary(fit_gamsel)
 
+
+
 ## ?? I don't understand what newx is supposed to be: "nobs_new x p matrix giving values of each predictor at which to plot."
 #also don't understand how to interpret plot / summary / printed summary
 plot.gamsel(fit_gamsel, newx = x_standardized)
@@ -161,7 +163,16 @@ print.gamsel(fit_gamsel)
 #I would need to spend more time figuring out what's going on under the hood of this package, and I don't think using the pixels checks out, because these aren't independent observations of density but taken from the SUID 
 
 
-#
+#LOG TRANSFORM
+y_logt <- log(1 + y)
+y
+y_logt
+
+fit_gamsel_logt<-gamsel(x_standardized, y_logt, degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1, 1, 1, 1, 1))
+summary(fit_gamsel_logt)
+plot(fit_gamsel_logt, newx = x_standardized)
+
+#same general trends,see v4 SAP_burn and v10 AvGppt, but less non-linearity using the log-transformed natregendensity values
 ```
 
 
