@@ -1,19 +1,63 @@
+Hypothesis 3
+------------
+
+This script tests hypothesis three: that planting tree seedlings, as
+carried out by the USFS, will improve longterm tree regeneration
+outcomes compared to adjacent sites with the same topographic position
+and burn severity that did not receive planting. The dependent variable
+is % change in forest area over the time between 1992 and 2016 within
+stands (aka clusters) that have similar aspect and burn severity. This
+varialbe was generated using NLCD data showing if each pixel is
+classified as forest or not forest. The hypothesis was tested with a
+differnces in differences approach whereby non-planted sites were
+assumed to have the same rate of tree recovery in burned patches as
+compared to adjacent control area (ie.. that didn't receive planting)
+under the null hypothesis.
+
+**Fire year**: 1987 **Study area**: The Klamath Ecoregion **Pixels
+included**: Mixed conifer forest as classified by Landfire's biophysical
+settings, identified as being conifer before the fire (as classified
+from a random forest algorithm), that burned at medium or high severity
+(MTBS), and that were classified as non-forest in 1992 from NLCD data 5
+years after the fire. Essentially, the study pixels included experienced
+stand-replacing fires in 1987 that occured in mixed conifer forest.
+
+Stand-level recovery trajectories
+---------------------------------
+
+Also includes some visualizations of the % change in pixels classified
+as forest in recovering stands
+
+Comparisons of NBR across vegetation types
+------------------------------------------
+
+This script aslo includes some visualizations of NBR stratified by
+vegetation type (as classified by NLCD)
+
+NBR recovery trajectories
+-------------------------
+
+Also includes some NBR recovering trajectories
+
 Install Packages
 
     library(tidyverse)
 
-    ## ── Attaching packages ────────────────────────────────────────────────────── tidyverse 1.3.0 ──
+    ## ── Attaching packages ───────────────────────────────────────────────────────────────── tidyverse 1.3.0 ──
 
     ## ✓ ggplot2 3.3.0     ✓ purrr   0.3.3
     ## ✓ tibble  2.1.3     ✓ dplyr   0.8.5
     ## ✓ tidyr   1.0.2     ✓ stringr 1.4.0
     ## ✓ readr   1.3.1     ✓ forcats 0.5.0
 
-    ## ── Conflicts ───────────────────────────────────────────────────────── tidyverse_conflicts() ──
+    ## ── Conflicts ──────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
     ## x dplyr::filter() masks stats::filter()
     ## x dplyr::lag()    masks stats::lag()
 
     source('scripts/adams_theme.R') #for ggplot2
+    source('scripts/adams_theme_v2.R')#for ggplot2
+
+    select <- dplyr::select
 
 Import data
 
@@ -39,7 +83,7 @@ Import data
 Some initial cleaning of the data
 
     df <- df %>%
-      select(-.geo, -'system:index') %>%
+      select(-`system:index`) %>%
       mutate(pixelID = as.character(1:n_pixels))
 
     names(df)
@@ -61,7 +105,7 @@ Some initial cleaning of the data
     ##  [85] "facts2002" "facts2003" "facts2004" "facts2005" "facts2006" "facts2007"
     ##  [91] "facts2008" "facts2009" "facts2010" "facts2011" "facts2012" "facts2013"
     ##  [97] "facts2014" "facts2015" "facts2016" "facts2017" "facts2018" "northness"
-    ## [103] "slope"     "pixelID"
+    ## [103] "slope"     ".geo"      "pixelID"
 
 Identifying patches with more than eight pixels. "Clusters" and
 "Patches" are used interchangeably throughout the document.
@@ -290,7 +334,7 @@ majority are "mixed conifer dry to mesic", and "mixed conifer mesic".
       theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
       ylab(label = "N pixels")
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-10-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-10-1.png)
 
     total_sample_area <- length(unique(df$pixelID)) * 900 / 10e4 
     total_sample_area 
@@ -335,7 +379,7 @@ our sample
 
     ## Warning: Removed 2 rows containing missing values (geom_bar).
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-11-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-11-1.png)
 
     length(unique(df$pixelID))
 
@@ -390,7 +434,7 @@ these fractions from 1992 to 2016 (the fire was in 1987).
       scale_x_continuous(n.breaks = 7, limits = c(1992,2016)) +
       ylab(label = "Tree Cover Fraction Per Patch")
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-13-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-13-1.png)
 
 Whats the distribution of changes in the fractional area of tree cover
 between 2016 and 1992 for the patches in our sample? Below we see that
@@ -418,7 +462,7 @@ accumulated tree cover and some lost tree cover.
 
     ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-14-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-14-1.png)
 
 Pre-fire NBR is a measure of how much vegetation was in the pixel before
 the fire.
@@ -510,6 +554,18 @@ the categorical predictor vars, and the dependent variables in one df.
     ## #   ecotype_code <fct>, eco_type <fct>, factsTreatmentCode <fct>, WID <fct>,
     ## #   factsTreatment <dbl>, factsTreatmentLogical <fct>
 
+    names(df)
+
+    ##  [1] "pixelID"            "clusterID.x"        "FIRE_YEAR"         
+    ##  [4] "FireID"             "burnSev"            "distance"          
+    ##  [7] "northness"          "eastness"           "elevation"         
+    ## [10] "slope"              "ecotype_code"       "WID"               
+    ## [13] "NBR"                "year"               "clusterID.y"       
+    ## [16] "NLCD_year"          "landcover_code"     "land_cover_name"   
+    ## [19] "clusterID"          "facts_year"         "factsTreatmentCode"
+    ## [22] "factsTreatment"     "burnSevLong"        "eco_type"          
+    ## [25] "preFireNBR"         "pct_nbr_recovery"
+
 Exploring correlations between variables
 
     library(ggcorrplot)
@@ -525,7 +581,7 @@ Exploring correlations between variables
     ggcorrplot(corr, hc.order = TRUE, type = "lower",
        lab = TRUE, p.mat = Pmat)
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-19-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-20-1.png)
 
 Analyzing forest recovery by forest type. The majority of forest types
 continue to lose forest cover even 5 years after the fire. The Mixed
@@ -538,7 +594,7 @@ regeneration.
       ylab(label = "% change in tree cover (1992-2016)") +
       theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-20-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-21-1.png)
 
 Analyzing the effect of the USFS planting trees on the future
 physiognomic class in fire-affected pixels using data from the Forest
@@ -569,7 +625,7 @@ treated (planted) and untreated pixels.
       ylab(label = "percent of pixels regenerating back to forest") +
       xlab(label = "not planted = 0, planted = 1")
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-21-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-22-1.png)
 
 Setting up a datafram to test the difference in differences between
 paired control and planted pixels. Groups of pixels that are in the same
@@ -597,17 +653,32 @@ matched.
 
 Visualizing data
 
-    facts_treatment_df %>%
+    plantingVSnot <- facts_treatment_df %>%
       ggplot(aes(factor(treatment),frac_tr)) +
       geom_boxplot() +
-      stat_summary(fun.y = mean, geom="point",colour="darkred", size=3) +
-      ylab("percent of pixels regenerating back to forest") +
-      xlab("treatment group")+
-      labs(title = "the effect of planting on patch-level forest regeneration (30 yrs post fire)")
+      stat_summary(fun = mean, geom="point",colour="darkred", size=3) +
+      ylab("% of stand returning to forest") +
+      xlab("") +
+      adams_theme2
 
-    ## Warning: `fun.y` is deprecated. Use `fun` instead.
+    # outOfSampleTest %>%
+    #   ggplot(aes(conifer,prediction)) +
+    #   geom_boxplot()+ 
+    #   ylab(label = "Predicted Prob. Conifer") +
+    #   xlab(label = "Reference (Not Conifer vs. Conifer)") +
+    #   adams_theme2 
+    # 
+    #   
+    png(filename = "~/cloud/gdrive/fire_project/DS421_proj/output/plantingVSnot.png", height=5, width=8, units="in", res = 100)
+    plantingVSnot
+    dev.off()
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-23-1.png)
+    ## png 
+    ##   2
+
+    plantingVSnot 
+
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-24-1.png)
 
 The dependent variable (y axis in figure above) needs to be log
 transformed for statistical analysis because it is not normally
@@ -619,7 +690,7 @@ distributed. A log transform resolves this.
 
     ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-24-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-25-1.png)
 
     facts_treatment_df %>%
     ggplot(aes(log(frac_tr))) +
@@ -629,7 +700,7 @@ distributed. A log transform resolves this.
 
     ## Warning: Removed 394 rows containing non-finite values (stat_bin).
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-24-2.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-25-2.png)
 
 A paired t-test shows that planting does increase forest regeneration 30
 years after fire.
@@ -707,13 +778,13 @@ last variable could be a proxy for "site potential".
     ggcorrplot(corr, hc.order = TRUE, type = "lower",
        lab = TRUE, p.mat = Pmat)
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-26-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-27-1.png)
 
     facts_cor_data %>%
       ggplot(aes(x = preFireNBR, y = tr_diff)) +
       geom_point()
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-27-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-28-1.png)
 
 Appendix. Exploring NBR recovery over time.
 -------------------------------------------
@@ -734,7 +805,7 @@ for NLCD
       labs(fill="") +
       adams_theme
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-28-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-29-1.png)
 
 Plotting the patch-level NBR through time for a random sample of
 patches. We see that NBR starts to saturate (i.e. reach the pre-fire NBR
@@ -756,7 +827,7 @@ not suitable of measuring forest recovery.
     ## Warning: Factor `clusterID` contains implicit NA, consider using
     ## `forcats::fct_explicit_na`
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-29-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-30-1.png)
 
 Plotting the percent NBR recovery for each patch. This shows NBR as a
 percent of the pre-fire values.
@@ -778,7 +849,7 @@ percent of the pre-fire values.
 
     ## Warning: Removed 625 row(s) containing missing values (geom_path).
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-30-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-31-1.png)
 
 Histogram of percent recovery in 2000 (6 years after fire)
 
@@ -796,7 +867,7 @@ Histogram of percent recovery in 2000 (6 years after fire)
 
     ## Warning: Removed 397 rows containing non-finite values (stat_density).
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-31-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-32-1.png)
 
 Density plot of percent recovery in 2017 (23 years after fire)
 
@@ -814,7 +885,7 @@ Density plot of percent recovery in 2017 (23 years after fire)
 
     ## Warning: Removed 1108 rows containing non-finite values (stat_density).
 
-![](analysis_1987_fires_files/figure-markdown_strict/unnamed-chunk-32-1.png)
+![](Hypothesis3_affectOFplanting_differenceIndifferences_files/figure-markdown_strict/unnamed-chunk-33-1.png)
 
 Creating variables showing the percent NBR recovery in 92,97,2017
 
@@ -876,3 +947,15 @@ fire). This is commented out because it was crashing R studio.
     #   scale_y_continuous() +
     #   xlim(c(0,500)) +
     #   adams_theme
+
+    # outOfSampleTest %>%
+    #   ggplot(aes(conifer,prediction)) +
+    #   geom_boxplot()+ 
+    #   ylab(label = "Predicted Prob. Conifer") +
+    #   xlab(label = "Reference (Not Conifer vs. Conifer)") +
+    #   adams_theme2 
+    # 
+    #   
+    # png(filename = "~/cloud/gdrive/fire_project/DS421_proj/output/prediction_fig.png", height=5, width=8, units="in", res = 100)
+    # prediction_fig
+    # dev.off()
