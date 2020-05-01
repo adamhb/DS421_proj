@@ -8,6 +8,7 @@ Install Packages
 ```{r}
 library(tidyverse)
 source('scripts/adams_theme.R') #for ggplot2
+source('scripts/adams_theme_v2.R')#for ggplot2
 ```
 
 
@@ -430,14 +431,28 @@ facts_treatment_df <- df %>%
 
 Visualizing data 
 ```{r}
-facts_treatment_df %>%
+plantingVSnot <- facts_treatment_df %>%
   ggplot(aes(factor(treatment),frac_tr)) +
   geom_boxplot() +
-  stat_summary(fun.y = mean, geom="point",colour="darkred", size=3) +
-  ylab("percent of pixels regenerating back to forest") +
-  xlab("treatment group")+
-  labs(title = "the effect of planting on patch-level forest regeneration (30 yrs post fire)")
+  stat_summary(fun = mean, geom="point",colour="darkred", size=3) +
+  ylab("% of stand returning to forest") +
+  xlab("") +
+  adams_theme2
 
+# outOfSampleTest %>%
+#   ggplot(aes(conifer,prediction)) +
+#   geom_boxplot()+ 
+#   ylab(label = "Predicted Prob. Conifer") +
+#   xlab(label = "Reference (Not Conifer vs. Conifer)") +
+#   adams_theme2 
+# 
+#   
+png(filename = "~/cloud/gdrive/fire_project/DS421_proj/output/plantingVSnot.png", height=5, width=8, units="in", res = 100)
+plantingVSnot
+dev.off()
+
+
+plantingVSnot 
 ```
 
 The dependent variable (y axis in figure above) needs to be log transformed for statistical analysis because it is not normally distributed. A log transform resolves this.
@@ -654,4 +669,19 @@ Showing the relationship between distance (to the edge of a medium / high severi
 #   adams_theme
 ```
 
+
+
+```{r}
+# outOfSampleTest %>%
+#   ggplot(aes(conifer,prediction)) +
+#   geom_boxplot()+ 
+#   ylab(label = "Predicted Prob. Conifer") +
+#   xlab(label = "Reference (Not Conifer vs. Conifer)") +
+#   adams_theme2 
+# 
+#   
+# png(filename = "~/cloud/gdrive/fire_project/DS421_proj/output/prediction_fig.png", height=5, width=8, units="in", res = 100)
+# prediction_fig
+# dev.off()
+```
 
