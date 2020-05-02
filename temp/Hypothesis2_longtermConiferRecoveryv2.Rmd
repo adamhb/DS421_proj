@@ -1,0 +1,399 @@
+---
+title: "Hypothesis 2"
+author: "Adam Hanbury-Brown"
+date: "April 21, 2020"
+output: html_document
+---
+
+##Hypothesis 2
+This script tests hypothesis two: A combination of topography, climate, fire, and management variables will predict the probability of conifer canopy dominance 30 yrs after fire. 
+
+The dependent variable is boolean: whether or not a post-fire pixel is classified as being confier or not conifer (using a random forest algorithm).
+
+**Fire year**: 1987
+**Study area**: The Klamath Ecoregion
+**Pixels included**: Mixed conifer forest as classified by Landfire's biophysical settings, identified as being conifer before the fire (as classified from a random forest algorithm), that burned at medium or high severity (MTBS), and that did not subsequently burn. Essentially, the study pixels included experienced stand-replacing fires in 1987 that occured in mixed conifer forest.
+
+
+
+Install Packages and ggplot options
+```{r}
+library(tidyverse)
+library(foreign)
+library(ggcorrplot)
+source('scripts/adams_theme.R')
+source('scripts/adams_theme_v2.R')#for ggplot2
+library(sf)
+library(caret)
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+select <- dplyr::select
+```
+
+
+Import data
+```{r}
+df <- readRDS('data/cleanDataApril20_v3.Rds')
+
+length(unique(df$SUID))
+#this csv describe each ecotype code
+
+str(df)
+eco_type_codes <- read_csv('data/landfire_ecotype_codes.csv')
+landfire_codes <- foreign::read.dbf("data/US_200EVT\\US_200EVT.dbf")
+landfire_codes <- landfire_codes %>% dplyr::select(VALUE,EVT_PHYS) %>% rename(landfire2016 = VALUE)
+n_pixels <- nrow(df) #number of pixels in the dataset 
+n_pixels
+```
+
+
+```{r}
+#cleaning
+df <- df %>%
+  left_join(landfire_codes) %>%
+  mutate(conifer = case_when(
+    (EVT_PHYS == "Conifer" | EVT_PHYS == "Conifer-Hardwood") ~ TRUE,
+    TRUE ~ FALSE
+  ))
+#str(df)
+
+names(df)
+```
+
+
+Defining and reclassing variables 
+```{r}
+continuous_vars <- names(df)[c(2:4,8,9,11,12,14,15,18,21,6,29)]
+categorical_predvars <- names(df)[c(13,16,31,32,7,10,17,35)] #up to here
+boolean_predvars <- names(df)[c(19,20,25:28,30,5,36)]
+
+#depVars <- names(df)[c(25,29,30)]
+
+df <- df %>%
+  mutate_at(.vars = vars(boolean_predvars), .funs = as.logical) %>%
+  mutate_at(.vars = vars(categorical_predvars), .funs = as.factor) %>%
+  mutate_at(.vars = "SUID",.funs = as.factor)
+
+str(df)
+```
+
+
+
+###study area statistics
+```{r}
+#percent of study area in a SUID
+(nrow(df) - sum(is.na(df$SUID))) / nrow(df) * 100
+
+#total study area (ha)
+nrow(df) * 900 / 10000
+
+#number of SUIDs in the study area
+length(unique(df$SUID))
+```
+51,521 pixels were not in a SUID. 14,241 pixels were in a SUID (21 % of the study area). Total study area is about 6,000 hectares, with about 1,200 ha of managed land in the study. There are 360 SUIDs in the study area.
+
+
+Summary of continuous variables
+```{r}
+for(i in continuous_predvars){
+  print(i)
+  print(list((df %>% pull(i) %>% summary())))
+}
+```
+
+
+Looking at collinearity among the continuous variables
+```{r}
+corr <- df %>%
+  dplyr::select(continuous_predvars) %>%
+  cor() %>% round(2)
+
+Pmat <- df %>%
+  dplyr::select(continuous_predvars) %>%
+  cor_pmat()
+
+ggcorrplot(corr, hc.order = TRUE, type = "lower",
+   lab = TRUE, p.mat = Pmat)
+```
+
+
+Correlation among categorical variables
+```{r}
+categorical_predvars
+table(df$conifer,df$burnSev)
+chisq.test(df$burnSev,df$forestType)
+```
+
+
+###Exploring relationships visually
+
+The SAP surviving conifers appears to be higher for the pixels that were conifer in 2016, but the relationship doesn't look significant.
+```{r}
+df %>%
+  ggplot(aes(x = conifer, y = SAP_surv_conifers))+
+  geom_boxplot()
+```
+
+
+
+More pixels in medium severity burn sites (i.e. "3") become conifer in 2016
+```{r}
+
+print('burn sev')
+table(df$conifer,df$burnSev)
+chisq.test(df$conifer,df$burnSev)
+
+print('planting')
+table(df$conifer,df$plantedFirst5Years)
+chisq.test(df$conifer,df$plantedFirst5Years)
+
+```
+
+
+Conifers regenerate more on northern slopes
+```{r}
+
+northness <- df %>%
+  ggplot(aes(x = conifer, y = northness))+
+  geom_boxplot() + 
+  ylab(label = "Northness (cos of aspect)") +
+  xlab(label = "Conifers dominate canopy 30 yrs later") +
+  adams_theme2 
+
+  
+png(filename = "output/northness.png", height=5, width=8, units="in", res = 100)
+northness
+dev.off()
+
+# SAP_figure <- df %>%
+#   ggplot(aes(x = conifer, y = SAP_surv_conifers))+
+#   geom_boxplot() + 
+#   ylab(label = "Seed availability proxy") +
+#   xlab(label = "Conifers dominate canopy 30 yrs later") +
+#   adams_theme2 
+
+# png(filename = "output/SAP_figure.png", height=5, width=8, units="in", res = 100)
+# SAP_figure 
+# dev.off()
+  
+```
+
+
+
+
+Northness is higher for the pixels that did not come back as conifer. Eastness doesn't matter as much.
+```{r}
+df %>%
+  ggplot(aes(x = conifer, y = northness))+
+  geom_boxplot()
+
+df %>%
+  ggplot(aes(x = conifer, y = SAP_surv_conifers))+
+  geom_boxplot()
+
+table(df$conifer,df$SPB, dnn = c("con","SPB"))
+
+```
+
+
+
+```{r}
+df %>%
+  ggplot(aes(x = CWD))+
+  geom_histogram()
+
+df %>%
+  ggplot(aes(x = conifer, y = CWD))+
+  geom_boxplot()
+
+df %>%
+  ggplot(aes(x = conifer, y = elevation))+
+  geom_boxplot()
+
+df %>%
+  ggplot(aes(x = conifer, y = slope))+
+  geom_boxplot()
+```
+
+
+Testing VIF on a model I hypothesize to explain the probability that a pixel becomes conifer. VIF is not over 5 for any variable.
+```{r}
+library(tidyverse)
+library(car)
+
+
+df <- df %>% mutate_at(.vars = "AvGTemp",.funs = function(x){x/12}) %>%
+  filter(forestType != "550")
+
+#Create training set
+train <- df %>% sample_frac(.70)
+
+table(train$conifer)
+
+
+#Create test set
+test  <- anti_join(df, train, by = 'ID')
+test
+
+
+#grab equal rows of conifer = T and conifer = F
+train1 <- train %>% filter(conifer == F)
+train2 <- train %>% filter(conifer == T) %>% sample_n(size = 3449)
+train <- rbind(train1,train2)
+
+#model with all variables
+attach(train)
+fullMod <- glm(formula = conifer ~ SAP_surv_conifers + SAP_burn + elevation + slope + northness + eastness + CWD + AvGppt + AvGTemp + SolarLoad + burnSev + forestType + LAND_SUITA + plantedFirst5Years + plantedAfter5Yrs + SPB + SPO + SPMec + certified_plantedIn6Years, family = binomial())
+
+#alias(fullMod)
+
+summary(fullMod)
+
+car::vif(fullMod)
+```
+
+
+
+Select key variables 
+```{r}
+
+Mod_rownames <- rownames(summary(fullMod)$coefficients)
+
+print(paste0("AIC",fullMod$aic))
+
+key_vars <- summary(fullMod)$coefficients %>% as_tibble() %>% mutate(rnames = Mod_rownames) %>% filter(`Pr(>|z|)` < 0.01)
+
+
+#take out solar load because its correlated with northness and northness appears to be better
+
+key_vars <- filter(key_vars, rnames != "SolarLoad")
+
+key_vars
+
+```
+
+AIC with just these "important vars" has a way higher AIC. 
+```{r}
+
+mod2 <- glm(data = train, formula = conifer ~ elevation + northness + eastness + AvGppt + AvGTemp + burnSev + plantedFirst5Years + SPO + SPMec, family = binomial())
+
+print(paste("AIC",mod2$aic))
+
+mod3 <- glm(data = train,formula = conifer ~ SAP_surv_conifers + SAP_burn + elevation + slope + SolarLoad + eastness + CWD + AvGppt + AvGTemp + burnSev + forestType + LAND_SUITA + plantedFirst5Years + plantedAfter5Yrs + SPB + SPO + SPMec + certified_plantedIn6Years, family = binomial())
+
+mod4 <- glm(data = train,formula = conifer ~ elevation + slope + northness + eastness + CWD + AvGppt + forestType + AvGTemp + burnSev + plantedFirst5Years + SPB + SPO + SPMec + certified_plantedIn6Years, family = binomial())
+
+
+```
+
+```{r}
+mod5 <- glm(data = train,formula = conifer ~ elevation + northness + eastness + AvGppt + AvGTemp + burnSev + plantedFirst5Years + SPB + SPMec, family = binomial())
+
+
+vif(mod4)
+
+print(paste("AIC mod 3",mod3$aic))
+
+print(paste("AIC mod small",mod2$aic))
+
+print(paste("AIC full mod",fullMod$aic))
+
+
+print(paste("AIC 4",mod4$aic))
+print(paste("AIC 5",mod5$aic))
+
+```
+
+
+
+
+making a table to bring into report and presentation
+```{r}
+library(xtable)
+
+#print(xtable(summary(mod4)),type = "html")
+
+tab_model(mod5)
+```
+
+
+
+```{r}
+xtable(summary(mod5))
+```
+
+
+```{r}
+
+#levels(test$forestType) <- c("549","549","551","552","555","556","559")
+#levels(train$forestType) <- c("549","549","551","552","555","556","559")
+
+
+outOfSampleTest <- test %>% mutate(prediction = predict(mod4, newdata = test, type = "response")) %>%
+  mutate(classification = as.logical(round(prediction))) %>% dplyr::select(prediction, conifer, classification) 
+
+#confusion matrix
+table(outOfSampleTest$conifer, outOfSampleTest$classification)
+
+
+#
+confusionMatrix(as.factor(outOfSampleTest$conifer), as.factor(outOfSampleTest$classification))
+
+
+prediction_fig <- outOfSampleTest %>%
+  ggplot(aes(conifer,prediction)) +
+  geom_boxplot()+ 
+  ylab(label = "Predicted Prob. Conifer") +
+  xlab(label = "Reference (Not Conifer vs. Conifer)") +
+  adams_theme2 
+
+  
+png(filename = "output/prediction_fig.png", height=5, width=8, units="in", res = 100)
+prediction_fig
+dev.off()
+
+
+```
+
+
+
+To do 
+
+results figures
+study area map
+1 map showing some vars and landcover outcomes (screen shot from gee)
+correlation matrix
+make top model table
+make table of confusion matrix
+figure showing class prob between true and false
+figures of log odds for top two variables
+update report
+update slides for presentation
+
+
+
+
+Appendix
+
+exporting fields to make field descriptions
+```{r}
+#names(df) %>% as.tibble() %>% write_csv(path = "data/data_fields.csv")
+```
+
+creating dataframe at the SUID level
+```{r}
+# SUID_df <- df %>%
+#   mutate_at(.vars = "SUID", .funs = as.factor) %>%
+#   drop_na(SUID) %>%
+#   group_by(SUID) %>%
+#   summarise_if(.predicate = is.numeric, .funs = mean) 
+```
+
+
+
+
+
+
+
+

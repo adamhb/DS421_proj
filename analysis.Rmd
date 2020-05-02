@@ -181,7 +181,7 @@ Solar load is higher for the pixels that did not come back as conifer
 ```{r}
 source('~/cloud/gdrive/fire_project/DS421_proj/scripts/adams_theme_v2.R')#for ggplot2
 
-northness <- df %>%
+northness_plot <- df %>%
   ggplot(aes(x = conifer, y = northness))+
   geom_boxplot() + 
   ylab(label = "Northness (cos of aspect)") +
@@ -190,7 +190,7 @@ northness <- df %>%
 
   
 png(filename = "~/cloud/gdrive/fire_project/DS421_proj/output/northness.png", height=5, width=8, units="in", res = 100)
-northness
+northness_plot
 dev.off()
 
 
