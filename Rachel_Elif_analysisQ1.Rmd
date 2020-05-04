@@ -148,31 +148,127 @@ hist(x_standardized[,5])
 # prod(dim(x))
 # noise = matrix( rnorm(prod(dim(x)),mean=0,sd=1E-3), dim(x)[1], dim(x)[2]) 
 # x_standardized + noise
-dim(x)[2]
+#dim(x)[2]
 #degrees = basis functions. SPO, SPB, SPMech are binary, which is why I'm setting their "degree" to 1
-fit_gamsel <- gamsel(x_standardized, y, degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1, 1, 1, 1, 1))
-summary(fit_gamsel)
+#fit_gamsel <- gamsel(x_standardized, y, num_lambda = 200, degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1, 1, 1, 1, 1))
+#summary(fit_gamsel)
 
 
 
 ## ?? I don't understand what newx is supposed to be: "nobs_new x p matrix giving values of each predictor at which to plot."
 #also don't understand how to interpret plot / summary / printed summary
-plot.gamsel(fit_gamsel, newx = x_standardized)
-print.gamsel(fit_gamsel)
+#plot.gamsel(fit_gamsel, newx = x_standardized)
+#print.gamsel(fit_gamsel)
 
 #I would need to spend more time figuring out what's going on under the hood of this package, and I don't think using the pixels checks out, because these aren't independent observations of density but taken from the SUID 
 
+#X = 
+#c(burnSev, forestType, SAP_surv_conifers, SAP_burn, elevation, slope, northness, eastness, CWD, AvGppt, AvGTemp, plantedFirst5Years, plantedAfter5Yrs, LAND_SUITA, PRODUCTIVI, SPB, SPO, SPMec)))
+
+
+fit_gamsel_3<-gamsel(x_standardized, y, num_lambda = 200, degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1,1, 1, 1, 1))
+plot(fit_gamsel, newx = x_standardized)
+
+plot(fit_gamsel_3, newx = x_standardized)
+```
+
+
+```{r}
 
 #LOG TRANSFORM
 y_logt <- log(1 + y)
 y
 y_logt
 
-fit_gamsel_logt<-gamsel(x_standardized, y_logt, degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1, 1, 1, 1, 1))
+y_filt = y[y_logt != 0]
+
+y_logt == 0
+
+x_filt = x_standardized[y_logt != 0,]
+str(x_filt)
+
+fit_gamsel_filtered<-gamsel(x_filt, y_filt, num_lambda = 200, degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1,1, 1, 1, 1))
+
+
+fit_gamsel_logt_filt<-gamsel(x_standardized, y_logt != 0, num_lambda = 200,family="binomial", degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1,1, 1, 1, 1))
+
+
+fit_gamsel_logt
+
+sqrt(var(y_filt))
+
+
+sqrt(var(predict.gamsel(fit_gamsel_logt, x_filt, 200) - y_filt))
+
+hist(y_logt, main = "Histogram of Log-Natural Regeneration Density")
+
+str(y_filt)
+str(x_filt)
+
+fit_gamsel_logt<-gamsel(x_standardized, y_logt, num_lambda = 200, degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1,1, 1, 1, 1))
+
 summary(fit_gamsel_logt)
+
+fit_gamsel_logt
+
 plot(fit_gamsel_logt, newx = x_standardized)
 
 #same general trends,see v4 SAP_burn and v10 AvGppt, but less non-linearity using the log-transformed natregendensity values
+
+#x <- as.matrix(filtered_df %>% dplyr::select(c(burnSev, forestType, SAP_surv_conifers, SAP_burn, elevation, slope, northness, eastness, CWD, AvGppt, AvGTemp, plantedFirst5Years, plantedAfter5Yrs, LAND_SUITA, PRODUCTIVI, SPB, SPO, SPMec)))
+
+#LAND_SUITA negative relationship
+#PRODUCTIVI positive relationship --> what goes into these two indices? I'm surprised they have opposite effects
+```
+
+
+```{r}
+#cross validation 
+
+#cv_logt_y = cv.gamsel(x_standardized, y_logt, lambda = c(2.0, 1.75, 1.5, 1.25, 1.0, 0.75, 0.5, 0.25, 0.1, 0.05, 0.01, 0.0), degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1, 1, 1, 1, 1), type.measure = "mse")
+
+cv_logt_y
+sd_pred_error_log_multipilicative = exp(sqrt(2.39))
+#multiplicative error, usign e^ to get multp. error for nat.density regen measure 
+sd_pred_error_log_multipilicative
+
+#sd deviation of the error in predicting the log transformed y
+sd_pred_error_log = sqrt(2.39)
+sd_log_y = sd(y_logt)
+
+
+#cv_y= cv.gamsel(x_standardized, y, lambda = c(2.0, 1.75, 1.5, 1.25, 1.0, 0.75, 0.5, 0.25, 0.1, 0.05, 0.01, 0.0), degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1, 1, 1, 1, 1), type.measure = "mse")
+
+cv_y
+sd_pred_error = sqrt(42171)
+sd_pred_error
+
+sdy = sd(y)
+#root mean sq error you would get if you just predicted a constant (the mean)
+
+#% decrease in pred error as compared to error using mean = 36.6%
+((sdy - sd_pred_error) / sdy) *100
+
+
+```
+
+
+```{r}
+
+hist(as.numeric(y_logt != 0))
+
+sum(y_logt != 0)/length(y_logt)
+
+hist(y)
+
+
+sum(y == 0)/length(y)
+1.0 - (sum(y_logt != 0)/length(y_logt))
+
+
+cv_logistic = cv.gamsel(x_standardized, y_logt != 0, family="binomial", lambda = c(2.0, 1.5, 1.0, 0.5, 0.4, 0.3, 0.25, 0.125, 0.0), degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1, 1, 1, 1, 1), type.measure = "class")
+
+cv_logistic
 ```
 
 
