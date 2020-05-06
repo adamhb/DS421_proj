@@ -1,5 +1,5 @@
 ---
-title: "analysis_script.Rmd"
+title: "Hypothesis_3.Rmd"
 author: "DS421 Team"
 date: "March 9, 2020"
 output: md_document
@@ -7,15 +7,16 @@ output: md_document
 
 ##Hypothesis 3
 
-This script tests hypothesis three: that planting tree seedlings, as carried out by the USFS, will improve longterm tree regeneration outcomes compared to adjacent sites with the same topographic position and burn severity that did not receive planting. The dependent variable is % change in forest area over the time between 1992 and 2016 within stands (aka clusters) that have similar aspect and burn severity. This varialbe was generated using NLCD data showing if each pixel is classified as forest or not forest. The hypothesis was tested with a differnces in differences approach whereby non-planted sites were assumed to have the same rate of tree recovery in burned patches as compared to adjacent control area (ie.. that didn't receive planting) under the null hypothesis.
+This script tests hypothesis three: that planting tree seedlings, as carried out by the USFS, will improve longterm tree regeneration outcomes compared to adjacent sites with the same topographic position and burn severity that did not receive planting. The dependent variable is % change in forest area over the time between 1992 and 2016 within stands (aka clusters/patches) that have similar aspect and burn severity. Percent change in forest was generated using NLCD data showing if each pixel is classified as forest or not forest. The hypothesis was tested with a differnces in differences approach whereby the null hypothesis was that non-planted sites were assumed to have the same rate of tree recovery in burned patches as compared to the adjacent control area (ie.. that didn't receive planting).
 
 **Fire year**: 1987
 **Study area**: The Klamath Ecoregion
 **Pixels included**: Mixed conifer forest as classified by Landfire's biophysical settings, identified as being conifer before the fire (as classified from a random forest algorithm), that burned at medium or high severity (MTBS), and that were classified as non-forest in 1992 from NLCD data 5 years after the fire. Essentially, the study pixels included experienced stand-replacing fires in 1987 that occured in mixed conifer forest.
 
 
+##Also included in this Script
 ##Stand-level recovery trajectories
-Also includes some visualizations of the % change in pixels classified as forest in recovering stands
+Some visualizations of the % change in pixels classified as forest in recovering stands
 
 ##Comparisons of NBR across vegetation types
 This script aslo includes some visualizations of NBR stratified by vegetation type (as classified by NLCD)

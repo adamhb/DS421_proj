@@ -2,7 +2,7 @@
 title: "fire_analysis"
 author: "Adam Hanbury-Brown"
 date: "April 21, 2020"
-output: html_document
+output: md_document
 ---
 
 ---
@@ -23,9 +23,6 @@ The dependent variable is boolean: whether or not a post-fire pixel is classifie
 
 
 
-
-
-
 Install Packages
 ```{r}
 library(tidyverse)
@@ -34,22 +31,24 @@ source('scripts/adams_theme.R')
 source('scripts/adams_theme_v2.R')#for ggplot2
 library(sf)
 library(caret)
+library(ggcorrplot)
 ```
 
 Import data
 ```{r}
-df <- readRDS('data/cleanDataApril20_v3.Rds')
+df <- readRDS('data/testDataMay6.Rds')
 #this csv describe each ecotype code
 
 str(df)
 eco_type_codes <- read_csv('data/landfire_ecotype_codes.csv')
 landfire_codes <- foreign::read.dbf("data/US_200EVT\\US_200EVT.dbf")
-landfire_codes <- landfire_codes %>% dplyr::select(VALUE,EVT_PHYS) %>% rename(landfire2016 = VALUE)
+landfire_codes <- landfire_codes %>% dplyr::select(VALUE,EVT_PHYS) %>% rename(landfire2016 = VALUE) %>%
+mutate_at(.vars = c("landfire2016","EVT_PHYS"), .funs = as.factor)
 n_pixels <- nrow(df) #number of pixels in the dataset 
 n_pixels
 ```
 
-
+Data cleaning
 ```{r}
 #cleaning
 df <- df %>%
@@ -57,39 +56,10 @@ df <- df %>%
   mutate(conifer = case_when(
     (EVT_PHYS == "Conifer" | EVT_PHYS == "Conifer-Hardwood") ~ TRUE,
     TRUE ~ FALSE
-  ))
+  )) %>% rename(landfireConifer = conifer)
 #str(df)
 ```
 
-exporting fields to make field descriptions
-```{r}
-#names(df) %>% as.tibble() %>% write_csv(path = "data/data_fields.csv")
-```
-
-creating dataframe at the SUID level
-```{r}
-# SUID_df <- df %>%
-#   mutate_at(.vars = "SUID", .funs = as.factor) %>%
-#   drop_na(SUID) %>%
-#   group_by(SUID) %>%
-#   summarise_if(.predicate = is.numeric, .funs = mean) 
-```
-
-
-defining and reclassing variables 
-```{r}
-continuous_predvars <- names(df)[c(6:16)]
-categorical_predvars <- names(df)[c(4,5,27,28)]
-boolean_predvars <- names(df)[c(19,21,22,23,24,26)]
-depVars <- names(df)[c(25,29,30)]
-
-df <- df %>%
-  mutate_at(.vars = vars(boolean_predvars), .funs = as.logical) %>%
-  mutate_at(.vars = vars(categorical_predvars), .funs = as.factor) %>%
-  mutate_at(.vars = "SUID",.funs = as.factor)
-
-str(df)
-```
 
 
 51,521 pixels were not in a SUID. 14,241 pixels were in a SUID (21 % of the study area). Total study area is about 6,000 hectares, with about 1,200 ha of managed land in the study. There are 360 SUIDs in the study area.
@@ -105,6 +75,18 @@ length(unique(df$SUID))
 ```
 
 
+```{r}
+continuous_predvars <- c('AvGTemp', 'AvGppt', 'CWD', 'SAP_SC', 'SAP_burn', 'SolarLoad', 'aspect', 'eastness', 'elevation', 'northness')
+
+trajectory_vars <- c('P1984', 'P1985', 'P1986', 'P1987', 'P1988', 'P1989', 'P1990', 'P1991', 'P1992', 'P1993', 'P1994', 'P1995', 'P1996', 'P1997', 'P1998', 'P1999', 'P2000', 'P2001', 'P2002', 'P2003', 'P2004', 'P2005', 'P2006', 'P2007', 'P2008', 'P2009', 'P2010', 'P2011', 'P2012', 'P2013', 'P2014', 'P2015', 'P2016', 'P2017', 'P2018', 'P2019')
+
+categorical_predvars <- c('burnSev','forestType','LAND_SUITA', 'PRODUCTIVI')
+
+boolean_predvars <- c('plantedEver', 'plantedFirst6Yrs', 'wilderness', 'plantedFirst5Years', 'SPB', 'SPO', 'SPMec','plantedAfter5Yrs','certified_plantedIn6Years')
+
+depVars <- c('EVT_PHYS', 'landfireConifer','Conifer2019', 'ConiferProb2019', 'NLCD2016', 'landfire2016','latestSurveyNatDensity')
+```
+
 
 Summary of continuous variables
 ```{r}
@@ -115,37 +97,9 @@ for(i in continuous_predvars){
 ```
 
 
-Export raster of landfire codes
-```{r}
-
-lf_lookup_code <- landfire_codes %>% pull(EVT_PHYS) %>% unique() %>% as.tibble() %>% rowid_to_column(var = "lf_code")
-
-lf_code <- landfire_codes %>% pull(EVT_PHYS) %>% unique() %>% as.tibble() %>% rowid_to_column(var = "lf_code") %>% rename(EVT_PHYS = value) %>%
-  left_join(df) %>% dplyr::select(x,y,lf_code)
-
-summary(lf_code$lf_code)
-
-library(raster)
-
-SUID_polygons <- st_read(dsn = "~/cloud/gdrive/fire_project/local_data/facts/SUIDSin1987StudyArea.shp")
-
-
-lf_coderaster <- rasterFromXYZ(xyz = lf_code, res = 30, crs = crs(SUID_polygons))
-plot(lf_coderaster)
-
-#writeRaster(lf_coderaster,filename = "~/cloud/gdrive/fire_project/local_data/Landfire_EVC/lf.tiff")
-
-
-
-```
-
-
 
 Looking at collinearity among the continuous variables
 ```{r}
-library(ggcorrplot)
-library(tidyverse)
-
 corr <- df %>%
   dplyr::select(continuous_predvars) %>%
   cor() %>% round(2)
@@ -154,7 +108,7 @@ Pmat <- df %>%
   dplyr::select(continuous_predvars) %>%
   cor_pmat()
 
-ggcorrplot(corr, hc.order = TRUE, type = "lower",
+ggcorrplot(corr, type = "lower",
    lab = TRUE, p.mat = Pmat)
 ```
 
@@ -162,19 +116,17 @@ ggcorrplot(corr, hc.order = TRUE, type = "lower",
 Correlation among categorical variables
 ```{r}
 categorical_predvars
-table(df$conifer,df$burnSev)
-chisq.test(df$burnSev,df$forestType)
-
+table(df$Conifer2019,df$burnSev)
+chisq.test(df$Conifer2019,df$burnSev)
 ```
 
 
-
-Exploring relationships visually
+##Exploring relationships visually
 
 The SAP surviving conifers appears to be higher for the pixels that were conifer in 2016. The same is not true of the SAP_burn
 ```{r}
 df %>%
-  ggplot(aes(x = conifer, y = SAP_surv_conifers))+
+  ggplot(aes(x = Conifer2019, y = SAP_SC))+
   geom_boxplot()
 ```
 
@@ -182,64 +134,61 @@ df %>%
 
 More pixels in medium severity burn sites become conifer in 2016
 ```{r}
-
 print('burn sev')
-table(df$conifer,df$burnSev)
-chisq.test(df$conifer,df$burnSev)
+table(df$Conifer2019,df$burnSev)
+chisq.test(df$Conifer2019,df$burnSev)
 
 print('planting')
-table(df$conifer,df$plantedFirst5Years)
-chisq.test(df$conifer,df$plantedFirst5Years)
-
-
+table(df$Conifer2019,df$plantedFirst5Years)
+chisq.test(df$Conifer2019,df$plantedFirst5Years)
 ```
 
 
 Solar load is higher for the pixels that did not come back as conifer
 ```{r}
-source('~/cloud/gdrive/fire_project/DS421_proj/scripts/adams_theme_v2.R')#for ggplot2
+source('scripts/adams_theme_v2.R')#for ggplot2
 
 northness_plot <- df %>%
-  ggplot(aes(x = conifer, y = northness))+
+  ggplot(aes(x = Conifer2019, y = northness))+
   geom_boxplot() + 
   ylab(label = "Northness (cos of aspect)") +
   xlab(label = "Conifers dominate canopy 30 yrs later") +
   adams_theme2 
 
   
-png(filename = "~/cloud/gdrive/fire_project/DS421_proj/output/northness.png", height=5, width=8, units="in", res = 100)
+png(filename = "output/northness.png", height=5, width=8, units="in", res = 100)
 northness_plot
 dev.off()
 
 
 
 SAP_figure <- df %>%
-  ggplot(aes(x = conifer, y = SAP_surv_conifers))+
+  ggplot(aes(x = Conifer2019, y = SAP_SC))+
   geom_boxplot() + 
   ylab(label = "Seed availability proxy") +
   xlab(label = "Conifers dominate canopy 30 yrs later") +
   adams_theme2 
 
-png(filename = "~/cloud/gdrive/fire_project/DS421_proj/output/SAP_figure.png", height=5, width=8, units="in", res = 100)
+SAP_figure
+
+png(filename = "output/SAP_figure.png", height=5, width=8, units="in", res = 100)
 SAP_figure 
 dev.off()
   
 ```
 
 
-
-
 Northness is higher for the pixels that did not come back as conifer. Eastness doesn't matter as much.
 ```{r}
 df %>%
-  ggplot(aes(x = conifer, y = northness))+
+  ggplot(aes(x = Conifer2019, y = northness))+
   geom_boxplot()
 
 df %>%
-  ggplot(aes(x = conifer, y = SAP_surv_conifers))+
+  ggplot(aes(x = Conifer2019, y = SAP_SC))+
   geom_boxplot()
 
-table(df$conifer,df$SPB, dnn = c("con","SPB"))
+table(df$Conifer2019,df$SPB, dnn = c("con","SPB"))
 
 ```
 
@@ -251,15 +200,15 @@ df %>%
   geom_histogram()
 
 df %>%
-  ggplot(aes(x = conifer, y = CWD))+
+  ggplot(aes(x = Conifer2019, y = CWD))+
   geom_boxplot()
 
 df %>%
-  ggplot(aes(x = conifer, y = elevation))+
+  ggplot(aes(x = Conifer2019, y = elevation))+
   geom_boxplot()
 
 df %>%
-  ggplot(aes(x = conifer, y = slope))+
+  ggplot(aes(x = Conifer2019, y = slope))+
   geom_boxplot()
 ```
 
@@ -276,22 +225,22 @@ df <- df %>% mutate_at(.vars = "AvGTemp",.funs = function(x){x/12}) %>%
 #Create training set
 train <- df %>% sample_frac(.70)
 
-table(train$conifer)
+table(train$Conifer2019)
 
 
 #Create test set
-test  <- anti_join(df, train, by = 'ID')
+test  <- anti_join(df, train, by = 'PixelID')
 test
 
 
-#grab equal rows of conifer = T and conifer = F
-train1 <- train %>% filter(conifer == F)
-train2 <- train %>% filter(conifer == T) %>% sample_n(size = 3449)
+#grab equal rows of Conifer2019 = T and conifer = F
+train1 <- train %>% filter(Conifer2019 == F)
+train2 <- train %>% filter(Conifer2019 == T) %>% sample_n(size = 80)
 train <- rbind(train1,train2)
 
 #model with all variables
 attach(train)
-fullMod <- glm(formula = conifer ~ SAP_surv_conifers + SAP_burn + elevation + slope + northness + eastness + CWD + AvGppt + AvGTemp + SolarLoad + burnSev + forestType + LAND_SUITA + plantedFirst5Years + plantedAfter5Yrs + SPB + SPO + SPMec + certified_plantedIn6Years, family = binomial())
+fullMod <- glm(formula = Conifer2019 ~ SAP_SC + SAP_burn + elevation + slope + northness + eastness + CWD + AvGppt + AvGTemp + SolarLoad + burnSev + forestType + LAND_SUITA + plantedFirst5Years + plantedAfter5Yrs + SPB + SPO + SPMec + certified_plantedIn6Years, family = binomial())
 
 #alias(fullMod)
 
@@ -306,16 +255,12 @@ Select key variables
 ```{r}
 
 Mod_rownames <- rownames(summary(fullMod)$coefficients)
-
 print(paste0("AIC",fullMod$aic))
-
 key_vars <- summary(fullMod)$coefficients %>% as_tibble() %>% mutate(rnames = Mod_rownames) %>% filter(`Pr(>|z|)` < 0.01)
-
 
 #take out solar load because its correlated with northness and northness appears to be better
 
 key_vars <- filter(key_vars, rnames != "SolarLoad")
-
 key_vars
 
 ```
@@ -323,32 +268,34 @@ key_vars
 AIC with just these "important vars" has a way higher AIC. 
 ```{r}
 
-mod2 <- glm(data = train, formula = conifer ~ elevation + northness + eastness + AvGppt + AvGTemp + burnSev + plantedFirst5Years + SPO + SPMec, family = binomial())
+mod2 <- glm(data = train, formula = Conifer2019 ~ elevation + northness + eastness + AvGppt + AvGTemp + burnSev + plantedFirst5Years + SPO + SPMec, family = binomial())
 
 print(paste("AIC",mod2$aic))
 
-mod3 <- glm(data = train,formula = conifer ~ SAP_surv_conifers + SAP_burn + elevation + slope + SolarLoad + eastness + CWD + AvGppt + AvGTemp + burnSev + forestType + LAND_SUITA + plantedFirst5Years + plantedAfter5Yrs + SPB + SPO + SPMec + certified_plantedIn6Years, family = binomial())
+mod3 <- glm(data = train,formula = Conifer2019 ~ SAP_SC + SAP_burn + elevation + slope + SolarLoad + eastness + CWD + AvGppt + AvGTemp + burnSev + forestType + LAND_SUITA + plantedFirst5Years + plantedAfter5Yrs + SPB + SPO + SPMec + certified_plantedIn6Years, family = binomial())
 
-mod4 <- glm(data = train,formula = conifer ~ elevation + slope + northness + eastness + CWD + AvGppt + forestType + AvGTemp + burnSev + plantedFirst5Years + SPB + SPO + SPMec + certified_plantedIn6Years, family = binomial())
+mod4 <- glm(data = train,formula = Conifer2019 ~ elevation + slope + northness + eastness + CWD + AvGppt + forestType + AvGTemp + burnSev + plantedFirst5Years + SPB + SPO + SPMec + certified_plantedIn6Years, family = binomial())
 
 
 ```
 
 ```{r}
-mod5 <- glm(data = train,formula = conifer ~ elevation + northness + eastness + AvGppt + AvGTemp + burnSev + plantedFirst5Years + SPB + SPMec, family = binomial())
+mod5 <- glm(data = train,formula = Conifer2019 ~ elevation + northness + eastness + AvGppt + AvGTemp + burnSev + plantedFirst5Years + SPB + SPMec, family = binomial())
 
 
 vif(mod4)
-
 print(paste("AIC mod 3",mod3$aic))
-
 print(paste("AIC mod small",mod2$aic))
-
 print(paste("AIC full mod",fullMod$aic))
-
-
 print(paste("AIC 4",mod4$aic))
 print(paste("AIC 5",mod5$aic))
+
+```
+
+
+
+making
+```{r}
 
 ```
 
@@ -385,30 +332,142 @@ xtable(summary(mod5))
 
 
 outOfSampleTest <- test %>% mutate(prediction = predict(mod4, newdata = test, type = "response")) %>%
-  mutate(classification = as.logical(round(prediction))) %>% dplyr::select(prediction, conifer, classification) 
+  mutate(classification = as.logical(round(prediction))) %>% dplyr::select(prediction, Conifer2019, classification) 
 
 #confusion matrix
-table(outOfSampleTest$conifer, outOfSampleTest$classification)
+table(outOfSampleTest$Conifer2019, outOfSampleTest$classification)
 
 
 #
-confusionMatrix(as.factor(outOfSampleTest$conifer), as.factor(outOfSampleTest$classification))
+confusionMatrix(as.factor(outOfSampleTest$Conifer2019), as.factor(outOfSampleTest$classification))
 
 
 prediction_fig <- outOfSampleTest %>%
-  ggplot(aes(conifer,prediction)) +
+  ggplot(aes(Conifer2019,prediction)) +
   geom_boxplot()+ 
   ylab(label = "Predicted Prob. Conifer") +
   xlab(label = "Reference (Not Conifer vs. Conifer)") +
   adams_theme2 
 
   
-png(filename = "~/cloud/gdrive/fire_project/DS421_proj/output/prediction_fig.png", height=5, width=8, units="in", res = 100)
+png(filename = "output/prediction_fig.png", height=5, width=8, units="in", res = 100)
 prediction_fig
 dev.off()
 
 
 ```
+
+
+
+
+Check spatial auto here.
+```{r}
+library(geoR)
+library(spdep)
+library(sf)
+
+df_res <- train %>% dplyr::select(x,y) %>%
+  cbind(mod5$residuals) 
+utm10 <- CRS(projargs = '+proj=utm +zone=10 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
+spatial_res <- st_as_sf(df_res, coords = c("x","y"), crs = utm10) 
+#plot(spatial_res)
+
+spatial_res <- rowid_to_column(spatial_res)
+test_spatial_res <- head(spatial_res,30000)
+knn_matrix <- knearneigh(test_spatial_res, k = 5)
+nnobj <- knn2nb(knn_matrix)
+nb_list <- nb2listw(neighbours = nnobj) 
+moran_output <- moran.test(x = test_spatial_res$`mod5$residuals`,listw = nb_list)
+```
+
+
+
+```{r}
+library(lme4)
+
+spatial_points <- df %>% dplyr::select(x,y) %>% rowid_to_column() %>% 
+  st_as_sf(coords = c("x","y"), crs = utm10)
+
+
+raster::raster(xmn = st_bbox(spatial_points)[1], ymn = st_bbox(spatial_points)[2], xmx = st_bbox(spatial_points)[3], ymx = st_bbox(spatial_points)[4], resolution = c(5000,5000), crs = utm10)
+
+
+rasterShell <- raster::raster(x = matrix(seq(1:350), nrow = 35, ncol = 10), xmn = st_bbox(spatial_points)[1], ymn = st_bbox(spatial_points)[2], xmx = st_bbox(spatial_points)[3], ymx = st_bbox(spatial_points)[4], crs = utm10)
+
+rasterShell <- raster::raster(x = matrix(seq(1:221628), nrow = 876, ncol = 253), xmn = st_bbox(spatial_points)[1], ymn = st_bbox(spatial_points)[2], xmx = st_bbox(spatial_points)[3], ymx = st_bbox(spatial_points)[4], crs = utm10)
+
+
+cellIDs <- raster::extract(rasterShell,spatial_points)
+
+dfWithCellId <- spatial_points %>%
+  mutate(cellIDs = cellIDs) %>% rename(ID = rowid) %>%
+  left_join(df, by = "ID") %>% as.tibble()
+
+
+```
+
+
+```{r}
+
+mod5spatial <- glmer(formula = Conifer2019 ~ elevation + northness + eastness + AvGppt + AvGTemp + burnSev + plantedFirst5Years + SPB + SPMec + (1|cellIDs), family=binomial, data=dfWithCellId)
+
+
+summary(mod5spatial)
+```
+
+
+
+defining and reclassing variables 
+```{r}
+# continuous_predvars <- names(df)[c(6:16)]
+# categorical_predvars <- names(df)[c(4,5,27,28)]
+# boolean_predvars <- names(df)[c(19,21,22,23,24,26)]
+# depVars <- names(df)[c(25,29,30)]
+# 
+# df <- df %>%
+#   mutate_at(.vars = vars(boolean_predvars), .funs = as.logical) %>%
+#   mutate_at(.vars = vars(categorical_predvars), .funs = as.factor) %>%
+#   mutate_at(.vars = "SUID",.funs = as.factor)
+# 
+# str(df)
+```
+
+
+
+
+Export raster of landfire codes
+```{r}
+# 
+# lf_lookup_code <- landfire_codes %>% pull(EVT_PHYS) %>% unique() %>% as.tibble() %>% rowid_to_column(var = "lf_code")
+# 
+# lf_code <- landfire_codes %>% pull(EVT_PHYS) %>% unique() %>% as.tibble() %>% rowid_to_column(var = "lf_code") %>% rename(EVT_PHYS = value) %>%
+#   left_join(df) %>% dplyr::select(x,y,lf_code)
+# 
+# summary(lf_code$lf_code)
+# 
+# library(raster)
+# 
+# SUID_polygons <- st_read(dsn = "~/cloud/gdrive/fire_project/local_data/facts/SUIDSin1987StudyArea.shp")
+# 
+# 
+# lf_coderaster <- rasterFromXYZ(xyz = lf_code, res = 30, crs = crs(SUID_polygons))
+# plot(lf_coderaster)
+# 
+# #writeRaster(lf_coderaster,filename = "~/cloud/gdrive/fire_project/local_data/Landfire_EVC/lf.tiff")
+# 
+# 
+
+```
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -438,6 +497,20 @@ make a journal entry about where things stand and what I need to do going foward
 
 
 
+
+exporting fields to make field descriptions
+```{r}
+#names(df) %>% as.tibble() %>% write_csv(path = "data/data_fields.csv")
+```
+
+creating dataframe at the SUID level
+```{r}
+# SUID_df <- df %>%
+#   mutate_at(.vars = "SUID", .funs = as.factor) %>%
+#   drop_na(SUID) %>%
+#   group_by(SUID) %>%
+#   summarise_if(.predicate = is.numeric, .funs = mean) 
+```
 
 
 
