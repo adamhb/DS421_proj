@@ -40,6 +40,19 @@ str(df)
 
 df$AvGTemp = df$AvGTemp / 12
 str(df)
+
+
+#creating adjusted northness variable (measure of south-facing exposure)
+#composite measure of exposure taht improves on northness 
+#see  Equations for potential annual direct incident radiation and heat load, Bruce McCune and Dylan Keon
+#https://doi.org/10.1111/j.1654-1103.2002.tb02087.x
+#adjusted northness (south-facing exposure) = -cos(aspect)*sin(slope)
+
+df$sfexposure = (-cos(df$aspect) * sin(df$slope))
+
+str(df)
+range(df$sfexposure)
+
 ```
 
 exporting fields to make field descriptions
@@ -122,24 +135,48 @@ hist(filtered_df$latestSurveyNatDensity)
 
 
 ```{r}
-#including all variables for gamsel
-x <- as.matrix(filtered_df %>% dplyr::select(c(burnSev, forestType, SAP_surv_conifers, SAP_burn, elevation, slope, northness, eastness, CWD, AvGppt, AvGTemp, plantedFirst5Years, plantedAfter5Yrs, LAND_SUITA, PRODUCTIVI, SPB, SPO, SPMec)))
+#including all variables for gamsel with the following exceptions: 
+#Using sfexposure (southfacing exposure), removing northness and eastness
+#NOT including forestType, badly encoded, should be turned into n unique forest type binary variables 
+#previously included PRODUCTIVI and LANDSUITA
+#LAND_SUITA negative relationship
+#PRODUCTIVI positive relationship --> what goes into these two indices? I'm surprised they have opposite effects
+unique(df$PRODUCTIVI)
+#seven levels if NA counts as "1", encoded 1:7, 
+hist(df$PRODUCTIVI)
+length(is.na(df$PRODUCTIVI))
+sum(is.na(df$PRODUCTIVI) == T)
+#most are NA
+unique(df$LAND_SUITA)
+#5 levels, 6 if counting NA
+#unclear if there's a relationship with code # and increasing land suitability 
+#Not including Land Suitability and Productivity in following gamsel fits
+
+
+x <- as.matrix(filtered_df %>% dplyr::select(c(burnSev, SAP_surv_conifers, SAP_burn, elevation, slope, sfexposure, CWD, AvGppt, AvGTemp, plantedFirst5Years, plantedAfter5Yrs, SPB, SPO, SPMec)))
 y <- as.numeric(filtered_df$latestSurveyNatDensity)
 
 #standardizing so that gamsel can fit
 #scale will do this, scale = F sets col-wise standardization 
 x_standardized = scale(x, scale = FALSE)
+degrees=c(1, 10, 10, 10,10,10,10, 10, 10, 1,1,1, 1, 1)
 
-hist(x_standardized[,5])
+hist(x_standardized[,6])
 
 #For gamsel package degrees = basis functions. Burn sev, forest type, SPO, SPB, SPMech are binary or categorical, which is why I'm setting their "degree" to 1
 #gamsel will choose lamda, i.e. the penalty term 
-fit_gamsel<-gamsel(x_standardized, y, degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1,1, 1, 1, 1))
+fit_gamsel<-gamsel(x_standardized, y, degrees=degrees)
 summary(fit_gamsel)
 plot(fit_gamsel, newx = x_standardized)
+plot(fit_gamsel, x_standardized, which = 2:3)
 
-#LAND_SUITA negative relationship
-#PRODUCTIVI positive relationship --> what goes into these two indices? I'm surprised they have opposite effects
+
+plot(fit_gamsel, x_standardized, which = 2, ylims = c(-100, 300), main = "Seed Availibility Proxy", )
+
+plot(fit_gamsel, x_standardized, which = 8, ylims = c(-400, 400), main = "Precipitation")
+
+
+
 ```
 
 
@@ -148,8 +185,8 @@ plot(fit_gamsel, newx = x_standardized)
 y_logt <- log(1 + y)
 
 #for reference: 
-#x <- as.matrix(filtered_df %>% dplyr::select(c(burnSev, forestType, SAP_surv_conifers, SAP_burn, elevation, slope, northness, eastness, CWD, AvGppt, AvGTemp, plantedFirst5Years, plantedAfter5Yrs, LAND_SUITA, PRODUCTIVI, SPB, SPO, SPMec)))
-fit_gamsel_logt<-gamsel(x_standardized, y_logt, degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1,1, 1, 1, 1))
+#x <- as.matrix(filtered_df %>% dplyr::select(c(burnSev, SAP_surv_conifers, SAP_burn, elevation, slope, sfexposure, CWD, AvGppt, AvGTemp, plantedFirst5Years, plantedAfter5Yrs, SPB, SPO, SPMec)))
+fit_gamsel_logt<-gamsel(x_standardized, y_logt, degrees=degrees)
 
 summary(fit_gamsel_logt)
 
