@@ -9,6 +9,7 @@ Install Packages
 ```{r}
 library(tidyverse)
 library(foreign)
+library(rgdal)
 source('scripts/adams_theme.R') #for ggplot2
 ```
 
@@ -22,12 +23,10 @@ landfire_codes <- foreign::read.dbf("data/US_200EVT\\US_200EVT.dbf")
 landfire_codes <- landfire_codes %>% dplyr::select(VALUE,EVT_PHYS) %>% rename(landfire2016 = VALUE)
 
 n_pixels <- nrow(df) #number of pixels in the dataset 
-n_pixels
 ```
 
-
+Clean and correct temperature values
 ```{r}
-#cleaning
 df <- df %>%
   left_join(landfire_codes) %>%
   mutate(conifer = case_when(
@@ -41,27 +40,72 @@ str(df)
 df$AvGTemp = df$AvGTemp / 12
 str(df)
 
+```
 
+Create adjustest northness variable (south-facing exposure)
+- this takes into account slope as well as aspect
+```{r}
 #creating adjusted northness variable (measure of south-facing exposure)
-#composite measure of exposure taht improves on northness 
+#composite measure of exposure that improves on northness 
 #see  Equations for potential annual direct incident radiation and heat load, Bruce McCune and Dylan Keon
 #https://doi.org/10.1111/j.1654-1103.2002.tb02087.x
 #adjusted northness (south-facing exposure) = -cos(aspect)*sin(slope)
+#folding along the 20deg / 220 deg line, personal communication form Matt Klin
+# this is approximately the ooptimal fold angle for the Klamath region 
 
-df$sfexposure = (-cos(df$aspect) * sin(df$slope))
 
-str(df)
+df$aspect_rad = pi*df$aspect / 180
+df$foldedaspect = abs(180 - abs(df$aspect_rad - 220))
+df$slope_rad = df$slope * pi / 180
+df$sfexposure = (-cos(df$foldedaspect) * sin(df$slope_rad))
+
 range(df$sfexposure)
+head(df %>% select(aspect_rad, sfexposure))
 
 ```
 
-exporting fields to make field descriptions
+Use folded aspect and Equation 3 from McCune 2002 ( https://doi.org/10.1111/j.1654-1103.2002.tb02087.x) to create heat load index variable
+ - this is an estimator of potential direct incident radiation 
+```{r}
+#Using McCune equations
+#Three options, two are relevant for this application:
+#Option 1 for slopes 0-90 range in lat 0-90, slightly worse fit (R2 = .93)
+#Option 3 best fit for slopes range 0-60 and lat range 30-60 (R2 = .98)
+
+range(df$slope)
+hist(df$slope)
+sum(df$slope > 60)
+length(df$slope)
+#with very few pixels with slopes > 60 degrees, equation 3 seems most reasonable
+#first need to convert UTM to lat lon
+
+dfspatial <- df%>% select(x, y)
+sputm <- SpatialPoints(dfspatial, proj4string=CRS("+proj=utm +zone=10 +datum=WGS84"))  
+spgeo <- spTransform(sputm, CRS("+proj=longlat +datum=WGS84"))
+df$lat = spgeo$y
+df$lon = spgeo$x
+
+#units = radians
+constant = .339
+term1 = .808 * (cos(df$lat * pi / 180) * cos(df$slope_rad))
+term2 = -.196 * (sin(df$lat * pi /180) * sin(df$slope_rad))
+term3 = -.482 *(cos(df$foldedaspect) * sin(df$slope_rad))
+
+df$heatloadindex = constant + term1 + term2 + term3
+hist(df$heatloadindex)
+hist(df$SolarLoad)
+hist(df$sfexposure)
+```
+
+
+
+Exporting fields to make field descriptions
 ```{r}
 #names(df) %>% as.tibble() %>% write_csv(path = "data/data_fields.csv")
 ```
 
 
-creating dataframe at the SUID level
+Creating dataframe at the management unit (SUID) level
 ```{r}
 SUID_df <- df %>%
   mutate_at(.vars = "SUID", .funs = as.factor) %>%
@@ -70,7 +114,7 @@ SUID_df <- df %>%
   summarise_if(.predicate = is.numeric, .funs = mean) 
 ```
 
-looking at SUID_df
+Looking at SUID_df
 ```{r}
 str(df)
 str(SUID_df)
@@ -100,12 +144,6 @@ Looking at pairs to note any obvious colinearity
 ```{r}
 #pairs at the SUID level
 with(SUID_df, pairs(SUID_df[, c('latestSurveyNatDensity', 'burnSev', 'slope', 'elevation', 'CWD', 'SolarLoad')])) #, 'SPB', 'SPO', 'SPMec', 'LAND_SUITA', 'PRODUCTIVI')]))
-
-with(SUID_df, pairs(SUID_df[, c('latestSurveyNatDensity', 'burnSev', 'slope', 'elevation', 'CWD', 'AvGTemp', 'AvGppt')]))
-
-#CWD is a function of temp and precip, correct? so should temp & precip not be included as features in the model as their variation should be captured by CWD??
-
-with(SUID_df, pairs(SUID_df[, c('latestSurveyNatDensity', 'burnSev', 'LAND_SUITA', 'PRODUCTIVI', 'SPB')]))
 ```
 
 
@@ -153,13 +191,13 @@ unique(df$LAND_SUITA)
 #Not including Land Suitability and Productivity in following gamsel fits
 
 
-x <- as.matrix(filtered_df %>% dplyr::select(c(burnSev, SAP_surv_conifers, SAP_burn, elevation, slope, sfexposure, CWD, AvGppt, AvGTemp, plantedFirst5Years, plantedAfter5Yrs, SPB, SPO, SPMec)))
+x <- as.matrix(filtered_df %>% dplyr::select(c(burnSev, SAP_surv_conifers, SAP_burn, elevation, slope, sfexposure, heatloadindex, CWD, AvGppt, AvGTemp, plantedFirst5Years, plantedAfter5Yrs, SPB, SPO, SPMec)))
 y <- as.numeric(filtered_df$latestSurveyNatDensity)
 
 #standardizing so that gamsel can fit
 #scale will do this, scale = F sets col-wise standardization 
 x_standardized = scale(x, scale = FALSE)
-degrees=c(1, 10, 10, 10,10,10,10, 10, 10, 1,1,1, 1, 1)
+degrees=c(1, 10, 10, 10,10,10,10, 10, 10, 10, 1,1,1, 1, 1)
 
 hist(x_standardized[,6])
 
@@ -171,7 +209,8 @@ plot(fit_gamsel, newx = x_standardized)
 plot(fit_gamsel, x_standardized, which = 2:3)
 
 
-plot(fit_gamsel, x_standardized, which = 2, ylims = c(-100, 300), main = "Seed Availibility Proxy", )
+#can't add x, y labels, can add title 
+plot(fit_gamsel, x_standardized, which = 2, ylims = c(-100, 300), main = "Seed Availibility Proxy")
 
 plot(fit_gamsel, x_standardized, which = 8, ylims = c(-400, 400), main = "Precipitation")
 
@@ -212,12 +251,12 @@ y_logt == 0
 
 
 #filtered, predicting pixels regen density where regen != 0
-fit_gamsel_filtered<-gamsel(x_filt, y_filt, degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1,1, 1, 1, 1))
+fit_gamsel_filtered<-gamsel(x_filt, y_filt, degrees=degrees)
 summary(fit_gamsel_filtered)
 
 #filtered w log transformed y
 #filtered gamsel =predicting where regen density is NOT 0, binomial family
-fit_gamsel_logt_filt<-gamsel(x_standardized, y_logt != 0, num_lambda = 200,family="binomial", degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1,1, 1, 1, 1))
+fit_gamsel_logt_filt<-gamsel(x_standardized, y_logt != 0, num_lambda = 200,family="binomial", degrees=degrees)
 summary(fit_gamsel_logt_filt)
 
 
@@ -232,7 +271,7 @@ Cross validation using gamsel:
 #sqrt(var(predict.gamsel(fit_gamsel_logt, x_filt, 200) - y_filt))
 
 #cv on original model, y w/o log transform
-cv_y= cv.gamsel(x_standardized, y, lambda = c(2.0, 1.75, 1.5, 1.25, 1.0, 0.75, 0.5, 0.25, 0.1, 0.05, 0.01, 0.0), degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1, 1, 1, 1, 1), type.measure = "mse")
+cv_y= cv.gamsel(x_standardized, y, lambda = c(2.0, 1.75, 1.5, 1.25, 1.0, 0.75, 0.5, 0.25, 0.1, 0.05, 0.01, 0.0), degrees=degrees, type.measure = "mse")
 
 cv_y
 #using decreasing #s of lambda to find smallest possible val of prediction error
@@ -245,8 +284,11 @@ sdy = sd(y)
 #% decrease in pred error as compared to error using mean = 36.6%
 #model is only 36% better than using the mean y as predictor
 ((sdy - sd_pred_error) / sdy) *100
+plot(cv_y)
+```
 
 
+```{r}
 cv_logt_y = cv.gamsel(x_standardized, y_logt, lambda = c(2.0, 1.75, 1.5, 1.25, 1.0, 0.75, 0.5, 0.25, 0.1, 0.05, 0.01, 0.0), degrees=c(1, 1, 10, 10, 10,10,10,10,10, 10, 10, 1,1,1, 1, 1, 1, 1), type.measure = "mse")
 
 cv_logt_y
@@ -354,7 +396,7 @@ anova(Fit3, Fit4)
 
 
 ```
-No significan difference between models where productivity & suitability indices are included
+No significant difference between models where productivity & suitability indices are included
 
 
 ```{r}
@@ -402,6 +444,7 @@ summary(Fit11)
 
 
 ```{r}
+#figures
 #run xtable on "summary(of your moodel) " --> latex code to make table 
 #render latex code online
 #screenshot
